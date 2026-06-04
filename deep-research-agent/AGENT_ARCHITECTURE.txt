@@ -1,0 +1,428 @@
+================================================================================
+  深度研究智能体 · 完整技术文档
+  Deep Research Agent — Architecture & Flow Reference
+================================================================================
+
+本文档详细描述本项目 deep-research-agent 的完整架构、执行流程和技术细节。
+生成时间：2026-06-04
+
+================================================================================
+一、总体架构
+================================================================================
+
+本系统是一个 主管(Supervisor) + 研究员(Researcher) 的多智能体系统，
+基于 LangChain 的 deepagents 框架构建，大模型为 DeepSeek V4 Pro。
+
+                          ┌──────────────────────┐
+                          │    run_test.py        │  ← 入口
+                          │  用户输入研究课题      │
+                          └──────────┬───────────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+            ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+            │researcher-1  │ │researcher-2  │ │researcher-3  │  ← 并行研究员
+            │web_search    │ │web_search    │ │web_search    │    每个有独立上下文窗口
+            │web_fetch     │ │web_fetch     │ │web_fetch     │
+            │search_open.. │ │search_open.. │ │search_open.. │
+            │search_cross..│ │search_cross..│ │search_cross..│
+            └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
+                   │                │                │
+                   ▼                ▼                ▼
+            research_summary  research_summary  research_summary
+                   │                │                │
+                   └────────────────┼────────────────┘
+                                    │
+                                    ▼
+                          ┌──────────────────┐
+                          │   Supervisor     │  ← 主管（不拥有搜索工具）
+                          │  write_todos     │
+                          │  task (委托)     │
+                          │  write_file      │
+                          │  read_file       │
+                          └────────┬─────────┘
+                                   │
+                    ┌──────────────┼──────────────┐
+                    ▼              ▼              ▼
+              /report.md    /research_      /notes/*.md
+                            summary.txt
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+                          │  Summarizer LLM  │  ← 归档模块
+                          │  分类决策 + 浓缩  │
+                          └────────┬─────────┘
+                                   │
+                                   ▼
+                          history-database/
+                          <分类>/<日期>_<课题>.txt
+
+
+================================================================================
+二、完整执行流程（5 个阶段）
+================================================================================
+
+阶段 1/5 — 制定计划
+──────────────────
+Supervisor 收到用户课题后，第一步就是调用 write_todos 创建研究计划。
+将课题拆解为 3-4 个独立的子问题，每个子问题可以并行研究。
+
+  例如课题 "VLA模型的最新范式":
+  ├── 子问题1: VLA 的定义、核心概念和技术演进
+  ├── 子问题2: VLA 的架构设计和主流模型（RT-2/OpenVLA/Octo/π0）
+  └── 子问题3: VLA 的应用场景、未来趋势和发展方向
+
+阶段 2/5 — 并行委托研究员
+─────────────────────────
+Supervisor 在同一条消息中调用 3 次 task()，一次性派出全部研究员。
+每个 task 包含：
+  - description: 搜索什么、期望找到什么
+  - subagent_type: "researcher-1" / "researcher-2" / "researcher-3"
+
+研究员并行工作，各自拥有独立的上下文窗口，互不干扰。
+Supervisor 等待全部研究员完成后，收到每个研究员的结构化返回内容。
+
+阶段 3/5 — 归档笔记 + 检查补漏
+─────────────────────────────
+Supervisor 将研究员返回的内容用 write_file 写入 /notes/*.md，
+然后检查信息完整性。如果某个维度不够深入，再次 task 委托补充。
+确认信息充足后，用 ls /notes 列出所有笔记文件。
+
+阶段 4/5 — 撰写报告（分节写入）
+─────────────────────────────
+Supervisor 先读 /skills/academic-report/SKILL.md 获取报告格式规范，
+然后分 4 节依次写入 /report.md（避免一次性生成全文耗时过长无输出）:
+  第1节: 摘要 + 研究背景
+  第2节: 核心发现（按主题分组，每个主题一个三级标题）
+  第3节: 分析与讨论（矛盾标注、局限性、交叉验证）
+  第4节: 结论 + 参考来源（编号制引用 [1][2]...，禁止正文粘贴 URL）
+
+阶段 5/5 — 自我批判 + 归档
+──────────────────────────
+Supervisor 通读 /report.md，找出至少 1 处不足，修正后写入
+/research_summary.txt（不含"分类"标签——分类由后续 Summarizer 处理）。
+
+最终由 run_test.py 调用 Python 代码完成后续工作：
+  1. report.md → report.docx（python-docx 转换）
+  2. 调用 Summarizer LLM 分类 + 浓缩 → 写入 history-database/
+
+
+================================================================================
+三、研究员内部流程
+================================================================================
+
+每个研究员是一个完整的 deep agent 实例，拥有：
+  - 独立上下文窗口（与其他研究员和 Supervisor 完全隔离）
+  - 自己的系统提示词（RESEARCHER_PROMPT）
+  - 4 个搜索工具（web_search, web_fetch, search_openalex, search_crossref）
+
+研究员工作流程：
+  1. 收到 Supervisor 委托的子问题
+  2. 拆解为 4-5 个具体的窄查询（不是用宽问题直接搜）
+  3. 依次调用搜索工具，每步输出 [进度] 标记
+  4. 对搜索结果执行交叉验证（至少 2 个来源）
+  5. 达到 8 次搜索上限后立即停止并整理返回
+  6. 以结构化格式返回：核心发现（带来源URL） + 关键来源列表 + 信息充分性评估
+
+硬约束：
+  - 最多 8 次搜索（web_search + search_openalex + search_crossref 合计）
+  - web_fetch 失败 3 次即放弃
+  - 必须将发现直接写在返回消息中（不依赖文件传递）
+  - 每条发现必须附来源 URL
+
+
+================================================================================
+四、搜索管道详解
+================================================================================
+
+4.1 通用网络搜索（web_search）
+──────────────────────────────
+  后端: DuckDuckGo（通过 ddgs 库，免费，无需 API key）
+  流程:
+    1. 发起搜索请求 → DuckDuckGo 后端轮询多个引擎
+       (Google/Bing/Yahoo/Brave/Startpage/Mojeek)
+    2. 返回 10 条结果（SEARCH_MAX_RESULTS）
+    3. 进入重排环节 ↓
+
+4.2 检索重排（rerank.py）
+──────────────────────────
+  这是全系统质量收益最大的单点优化。
+  策略: "多搜回 → 精排 → 少留"
+
+  实现:
+    1. web_search 返回 10 条原始结果
+    2. 调用本地 BAAI/bge-reranker-v2-m3 Cross-Encoder 模型
+       （sentence-transformers 库，首次自动下载约 300MB，之后缓存）
+    3. 用 (query, body) 配对打分，按相关性降序排列
+    4. 保留最相关的 4 条（RERANK_TOP_K）
+    5. 原始 10 条 → 精排 → 4 条，大幅降低噪音
+
+  加载时机: 首次搜索时延迟加载（lru_cache 缓存），后续不再重复加载
+
+4.3 网页抓取（web_fetch）
+─────────────────────────
+  功能: 抓取单个网页全文，HTML → 纯文本
+  流程:
+    1. httpx 发送 HTTP GET（带 User-Agent 伪装）
+    2. _html_to_text() 正则清洗（去 script/style → 块级换行 → 去标签 → 实体解码）
+    3. 截断到 FETCH_CHAR_LIMIT (4000 字符)
+    4. 最多重试 3 次（指数退避: 1.5s → 2.25s → 3.375s）
+
+  arXiv 加速: 如果 ARXIV_MIRROR 已配置，自动将 arxiv.org 替换为中科院镜像
+  xxx.itp.ac.cn，大幅提升论文下载速度。
+
+4.4 学术搜索（search_openalex）
+───────────────────────────────
+  后端: OpenAlex REST API（免费、无需 key、覆盖 2.4 亿+ 论文）
+  流程:
+    1. GET https://api.openalex.org/works?search=<query>&per-page=5
+    2. 返回 JSON → 解析 papers 数组
+    3. _reconstruct_abstract() 将倒排索引还原为正常摘要文本
+    4. 截断摘要到 500 字符
+    5. 返回: 标题 + 年份 + 作者 + DOI/链接 + 摘要
+
+  使用时机: 研究员根据"学术搜索路由"指令，当子问题涉及
+  学术定义/理论原理/研究论文时优先使用。
+
+4.5 学术元数据（search_crossref）
+─────────────────────────────────
+  后端: Crossref REST API（免费、无需 key）
+  返回: 标题 + DOI + 期刊名 + 年份 + 作者（规范引用格式）
+  使用时机: 已有论文线索后补充准确的引用元数据
+
+
+================================================================================
+五、工具路由（研究员如何选择搜索工具）
+================================================================================
+
+研究员在 RESEARCHER_PROMPT 中收到以下路由指令:
+
+  ┌─────────────────────┬───────────────────────────┐
+  │ 查询类型            │ 优先工具                  │
+  ├─────────────────────┼───────────────────────────┤
+  │ 学术概念/理论/论文  │ search_openalex           │
+  │ 产品/平台/框架/实践 │ web_search                │
+  │ 规范引用信息(DOI..) │ search_crossref           │
+  └─────────────────────┴───────────────────────────┘
+
+  交叉验证原则: 同一子问题先用 search_openalex 找一手论文，
+  再用 web_search 找中文解读和工业视角，两路交叉验证。
+
+
+================================================================================
+六、Skills 系统（渐进式披露）
+================================================================================
+
+每个 skill 是一个文件夹，包含 SKILL.md:
+  - YAML 头部: name + description（始终对 agent 可见）
+  - Markdown 正文: 详细指令（仅在任务匹配时加载）
+
+本项目两个 skill:
+
+  academic-report/SKILL.md
+    ├── 报告结构规范（摘要→背景→发现→讨论→结论→来源）
+    ├── 引用规则（编号制 [1][2]...，正文禁止粘贴 URL）
+    └── 质量检查清单（7 项自查）
+
+  source-quality/SKILL.md
+    ├── 高质量来源标准（同行评审论文/官方文档/知名技术媒体）
+    ├── 低质量来源警戒（无日期/内容农场/营销软文/洗稿）
+    └── 处理规则（交叉验证≥2 来源/标注存疑/记录分歧/宁缺毋滥/时效优先）
+
+Skills 在 agent 初始化时从 deep_research/skills/ 复制到 workspace/skills/，
+使 FilesystemBackend 可以正确解析虚拟路径 /skills/<name>。
+
+
+================================================================================
+七、归档系统（Summarizer）
+================================================================================
+
+7.1 流程
+────────
+  1. Agent 完成 research_summary.txt（不含分类标签）
+  2. run_test.py 扫描 history-database/ 下已有分类文件夹名
+  3. 调用 deep_research/summarizer.py → condense_and_categorize()
+  4. Summarizer LLM (DeepSeek V4 Pro, temperature=0.3) 收到:
+       - 研究摘要全文
+       - 已有分类列表（如 ["AI Agent架构", "AI Agent, 记忆系统...", ...]）
+    返回:
+       - [CATEGORY] 匹配已有的分类名 OR 新的分类名 [/CATEGORY]
+       - [SUMMARY] 浓缩后的摘要（目标长度 = max(原长/4, 200字)）[/SUMMARY]
+  5. Python 层写入 history-database/<分类>/<日期>_<课题>.txt
+
+7.2 设计原则
+────────────
+  - 零硬编码: Python 层不做任何分类匹配，全由 LLM prompt 驱动
+  - 分类复用: LLM 看到已有分类后判断是否匹配，匹配则直接复用
+  - 新建容错: 不匹配则返回 2-3 个关键词作为新分类名
+  - 浓缩可控: 浓缩长度根据原文长度动态计算（1/4，最低 200 字）
+  - 优雅降级: Summarizer 调用失败时回退到"未分类" + 原文
+
+
+================================================================================
+八、配置系统（config.py）
+================================================================================
+
+所有可调参数集中管理，分为以下组:
+
+  ┌──────────────┬────────────────────────────────────┐
+  │ 配置组       │ 关键参数                           │
+  ├──────────────┼────────────────────────────────────┤
+  │ 项目路径     │ PROJECT_ROOT, WORKSPACE_DIR,       │
+  │              │ SKILLS_DIR                         │
+  ├──────────────┼────────────────────────────────────┤
+  │ DeepSeek API │ DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL│
+  │              │ AGENT_MODEL (deepseek-v4-pro)      │
+  │              │ REQUEST_TIMEOUT (180s), MAX_RETRIES│
+  ├──────────────┼────────────────────────────────────┤
+  │ 搜索配置     │ SEARCH_MAX_RESULTS (10)            │
+  │              │ FETCH_CHAR_LIMIT (4000)            │
+  │              │ FETCH_TIMEOUT (15s)                │
+  ├──────────────┼────────────────────────────────────┤
+  │ 重排配置     │ RERANK_ENABLED (True)              │
+  │              │ RERANK_MODEL (BAAI/bge-reranker-v2)│
+  │              │ RERANK_TOP_K (4)                   │
+  ├──────────────┼────────────────────────────────────┤
+  │ 学术来源     │ USE_OPENALEX (True)                │
+  │              │ USE_CROSSREF (True)                │
+  │              │ ARXIV_MIRROR (xxx.itp.ac.cn)       │
+  │              │ ACADEMIC_MAILTO (邮箱，可选)        │
+  ├──────────────┼────────────────────────────────────┤
+  │ 运行时       │ RECURSION_LIMIT (250)              │
+  │              │ SUBAGENT_MAX_CONCURRENCY (3)       │
+  ├──────────────┼────────────────────────────────────┤
+  │ 归档         │ SUMMARIZE_MODEL (deepseek-v4-pro)  │
+  ├──────────────┼────────────────────────────────────┤
+  │ 报告         │ REPORT_FILENAME, OUTPUT_DOCX_FILENAME│
+  └──────────────┴────────────────────────────────────┘
+
+API Key 加载优先级: 环境变量 DEEPSEEK_API_KEY > 项目根目录 deepseek.txt
+
+
+================================================================================
+九、项目文件结构
+================================================================================
+
+deep-research-agent/
+├── run_test.py                    # 主入口（丰富实时输出 + 归档逻辑）
+├── requirements.txt               # Python 依赖
+├── workspace/                     # 运行时产出（每轮自动清空）
+│   ├── report.md                  # 最终研究报告
+│   ├── report.docx                # Word 格式报告
+│   ├── research_summary.txt       # 研究摘要（供归档用）
+│   ├── notes/                     # 研究员笔记
+│   └── skills/                    # Skills 运行时副本
+├── history-database/              # 历史归档（持久化，不自动清空）
+│   └── <分类>/<日期>_<课题>.txt
+├── deep_research/                 # 核心 Python 包
+│   ├── __init__.py
+│   ├── config.py                  # 集中配置
+│   ├── tools.py                   # 搜索工具 (web_search/web_fetch/
+│   │                              #   search_openalex/search_crossref)
+│   ├── rerank.py                  # 检索重排模块
+│   ├── prompts.py                 # 系统提示词 (SUPERVISOR + RESEARCHER)
+│   ├── subagents.py               # 研究员子智能体定义
+│   ├── agent.py                   # Supervisor 组装工厂
+│   ├── summarizer.py              # 归档分类 + 浓缩模块
+│   ├── report.py                  # Markdown → .docx 转换
+│   └── skills/                    # Skills 定义（源文件）
+│       ├── academic-report/SKILL.md
+│       └── source-quality/SKILL.md
+└── examples/
+    └── run.py                     # 备用入口（简洁输出）
+
+
+================================================================================
+十、关键设计决策与约束
+================================================================================
+
+1. Supervisor 不能直接搜索
+   所有搜索工具只注册给研究员。Supervisor 只能通过 task() 委托。
+   这保证了上下文隔离——原始搜索数据永不进入 Supervisor 的窗口。
+
+2. 文件边界是扩展性的基石
+   研究员写笔记到 /notes/*.md，Supervisor 读文件而非接收原始数据。
+   这是 deepagents 框架的核心架构原则。
+
+3. 3 个独立命名的研究员（非 1 个）
+   researcher-1, researcher-2, researcher-3 作为 3 个独立的 SubAgent
+   字典注册。LangGraph 通过 lc_agent_name 区分它们，工具日志自动
+   带正确的编号标签。
+
+4. 重排是性价比最高的单点优化
+   搜索 10 条 → 本地 reranker 精排 → 保留 4 条。
+   多项研究表明适度的重排比增加搜索次数带来更大的质量收益。
+
+5. 学术搜索 = OpenAlex（免费）+ 可选 Crossref
+   不使用 Tavily（需付费），不使用 arXiv API（大陆不稳定）。
+   OpenAlex 覆盖 2.4 亿论文、免费无 key、国内通常可达。
+
+6. 所有外部请求必须优雅降级
+   每个外部 API 调用都有 timeout + try/except，
+   单源失败不影响整个研究流程。
+
+7. Deterministic work stays out of the agent loop
+   报告格式转换（.docx）、归档分类（Summarizer 独立调用）、
+   文件系统操作都由 Python 代码在 agent 循环外部完成。
+
+8. 递归限制 = 安全阀
+   RECURSION_LIMIT = 250，每一步模型调用/工具调用计为一步。
+   太低 → 研究中断；太高 → 失控烧钱。250 平衡了这两者。
+
+
+================================================================================
+十一、数据流示意（一轮完整研究）
+================================================================================
+
+User Input: "探索VLA模型的最新范式和可能发展方向"
+│
+├─► run_test.py: agent.stream({messages: [user_input]}, recursion_limit=250)
+│   │
+│   ├─► write_todos → 3 个子问题
+│   │
+│   ├─► task(researcher-1, "VLA 定义与概念")
+│   ├─► task(researcher-2, "VLA 架构与模型")
+│   ├─► task(researcher-3, "应用与趋势")       ← 3 个并行调用
+│   │       │
+│   │       ├─► web_search("VLA vision language action model survey")
+│   │       │   → 10 条 → rerank → 4 条
+│   │       ├─► search_openalex("vision language action embodied AI")
+│   │       │   → 5 篇论文（含 arXiv 链接）
+│   │       ├─► web_fetch(arxiv.org/abs/2405.14093) → 镜像加速
+│   │       ├─► web_fetch(arxiv.org/abs/2406.09246)
+│   │       ├─► ... (共 ≤8 次搜索)
+│   │       └─► 返回: "[完成] 研究摘要：## 核心发现 ..."
+│   │
+│   ├─► write_file("/notes/vla-concepts.md", ...)
+│   ├─► write_file("/notes/vla-architecture.md", ...)
+│   ├─► write_file("/notes/vla-applications-future.md", ...)
+│   │
+│   ├─► read_file("/skills/academic-report/SKILL.md")
+│   │
+│   ├─► write_file("/report.md", "## 摘要 ...")          ← 分 4 节增量写入
+│   ├─► write_file("/report.md", "## 核心发现 ...")
+│   ├─► write_file("/report.md", "## 分析与讨论 ...")
+│   ├─► write_file("/report.md", "## 结论 + 参考来源 ...")
+│   │
+│   ├─► write_file("/research_summary.txt", ...)
+│   │
+│   └─► run_test.py: convert_report() → report.docx
+│       run_test.py: 扫描 history-database/ → 3 个已有分类
+│       run_test.py: condense_and_categorize(content, existing)
+│           → 分类: "具身智能, VLA模型, 机器人学习"（新建）
+│           → 浓缩: 1782 字 → 895 字
+│           → 写入: history-database/具身智能, VLA模型, 机器人学习/
+│                   2026-06-04_探索VLA模型的最新范式和可能发展方向.txt
+│
+
+================================================================================
+十二、扩展方向
+================================================================================
+
+  - LangGraph Store: 跨会话持久记忆，让 Supervisor 查询历史研究
+  - 上下文摘要: 启用 harness 的自动摘要，支持超长时间运行
+  - Human-in-the-loop: write_todos 后暂停等待人工批准
+  - 并行委托优化: 多个 task 真正并发执行（目前是顺序发出但独立运行）
+  - 反思循环: 报告完成后增加"批评子智能体"做二次审核
+  - 秘塔 Metaso: 国产 AI 搜索 + 研究模式（需 API key）
+  - 搜索代理: 国内网络环境下配置 HTTP 代理

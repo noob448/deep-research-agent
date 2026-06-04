@@ -1,0 +1,27 @@
+# API Key
+deepseek.txt
+
+# Reference docs (not needed in repo)
+deep-research-agent-handson-conda.docx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime outputs (cleared on each run)
+deep-research-agent/workspace/
+
+# Vector store (local binary index)
+deep-research-agent/vector-store/
+
+# Research archives (user data, auto-created on first run)
+deep-research-agent/history-database/
+
+# Claude Code
+.claude/
+.memory/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,81 @@
+"""
+集中配置：模型、搜索深度、递归限制、工作区路径、技能路径。
+
+所有可调参数集中在这里，修改一行即可影响整个系统。
+"""
+
+import os
+from pathlib import Path
+
+# ─── 项目路径 ───────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  # deep-research-agent/
+WORKSPACE_DIR = PROJECT_ROOT / "workspace"
+SKILLS_DIR = Path(__file__).resolve().parent / "skills"  # deep_research/skills/
+
+# ─── DeepSeek API 配置 ───────────────────────────────────
+# DeepSeek 使用 OpenAI 兼容格式
+# 优先级: 环境变量 > 项目根目录的 deepseek.txt
+
+def _load_api_key() -> str:
+    """加载 DeepSeek API key（优先环境变量，其次从文件读取）。"""
+    key = os.getenv("DEEPSEEK_API_KEY", "")
+    if key:
+        return key
+    # 尝试从项目根目录的 deepseek.txt 读取
+    key_file = PROJECT_ROOT.parent / "deepseek.txt"
+    if key_file.exists():
+        return key_file.read_text(encoding="utf-8").strip()
+    return ""
+
+DEEPSEEK_API_KEY = _load_api_key()
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+# 模型选择 —— 所有 agent 使用统一模型
+# deepseek-v4-pro   → DeepSeek-V4 Pro，最新旗舰
+# deepseek-v4-flash → DeepSeek-V4 Flash，轻量快速
+AGENT_MODEL = "deepseek-v4-pro"
+
+# API 调用参数
+REQUEST_TIMEOUT = 180  # 秒（增加以容纳深度思考）
+MAX_RETRIES = 2
+
+# ─── 搜索配置 ───────────────────────────────────────────
+SEARCH_MAX_RESULTS = 10      # web_search 原始结果数（重排前多搜回）
+FETCH_CHAR_LIMIT = 4000      # web_fetch 单页截断字符数
+FETCH_TIMEOUT = 15           # web_fetch 请求超时（秒）
+
+# ─── HuggingFace 镜像（国内加速）──────────────────
+import os as _os
+_os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
+# ─── 重排配置（检索质量提升最大的单点优化）──────────
+RERANK_ENABLED = True
+RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # 本地开源 cross-encoder
+RERANK_TOP_K = 4                          # 重排后保留的最相关结果数
+
+# ─── Agent 运行时配置 ────────────────────────────────────
+RECURSION_LIMIT = 250        # LangGraph 循环步数上限（安全阀）
+SUBAGENT_MAX_CONCURRENCY = 3 # 并行 researcher 最大数量
+
+# ─── 报告配置 ───────────────────────────────────────────
+REPORT_FILENAME = "report.md"
+OUTPUT_DOCX_FILENAME = "report.docx"
+
+# ─── 归档配置 ───────────────────────────────────────────
+SUMMARIZE_MODEL = "deepseek-v4-pro"  # 分类+浓缩用的模型，可独立切换为更廉价的模型
+
+# ─── 向量库 / RAG 配置 ───────────────────────────────────
+# 将历史研究摘要向量化，存入本地 Chroma，供研究员检索历史积累
+RAG_ENABLED = True
+EMBEDDING_MODEL = "BAAI/bge-m3"                     # 本地嵌入模型（~1.2GB，与 reranker 同家族）
+VECTOR_STORE_DIR = PROJECT_ROOT / "vector-store"      # 本地持久化目录（不随 workspace 清空）
+VECTOR_COLLECTION = "research_history"
+RAG_TOP_K = 3                                         # 每次检索返回的历史研究条数
+# 注：BGE-M3(~1.2GB) + bge-reranker(~300MB) 同时加载约 1.5-2GB 内存
+
+# ─── 学术来源配置 ────────────────────────────────────────
+# 免费、无需 API key 的开放学术 API，国内通常可达
+ACADEMIC_MAILTO = ""            # 你的邮箱，填入后 OpenAlex/Crossref 响应更快更稳定
+USE_OPENALEX = True             # 首选学术搜索（覆盖 2.4 亿+ 中外论文）
+USE_CROSSREF = True             # DOI/期刊/作者等规范元数据
+ARXIV_MIRROR = "xxx.itp.ac.cn"  # 中科院 arXiv 镜像，加速论文下载（空字符串则用原站）
