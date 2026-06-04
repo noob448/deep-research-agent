@@ -53,14 +53,28 @@ python run_test.py "什么是AI Agent?"
 ### 4. CLI 选项
 
 ```bash
-# 全速推理模式
+# 基础用法
+python run_test.py "课题"
+
+# 全速推理（Supervisor/Researcher/Critic 全部 max）
 python run_test.py "课题" --long-thinking
 
 # 省 token 模式
 python run_test.py "课题" --short-thinking
 
-# 深度研究：推理拉满 + 反思回路 + 人工审批
+# 深度模式：推理拉满 + 反思回路 + 人工审批
 python run_test.py "课题" --long-thinking --enable-critic --interactive-plan
+
+# 调宽搜索预算 + 并发数
+python run_test.py "复杂课题" --max-searches 20 --max-researchers 5
+
+# 调试 RAG
+python run_test.py "课题" --no-hybrid-kb --debug
+python run_test.py "课题" --no-rerank-kb
+python run_test.py "课题" --no-contextual-rag
+
+# 重建向量库（老 schema → 新 schema 迁移）
+python build_index.py --rebuild
 
 # 查看所有选项
 python run_test.py --help

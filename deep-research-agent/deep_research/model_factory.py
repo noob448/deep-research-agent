@@ -26,9 +26,7 @@ def make_chat_model(role: str = "default", temperature: float = None) -> ChatOpe
     }
     effort = effort_map.get(role, "high")
 
-    model_kwargs = {}
-    if cfg.THINKING_ENABLED:
-        model_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+    extra_body = {"thinking": {"type": "enabled"}} if cfg.THINKING_ENABLED else None
 
     return ChatOpenAI(
         model=cfg.AGENT_MODEL,
@@ -39,5 +37,5 @@ def make_chat_model(role: str = "default", temperature: float = None) -> ChatOpe
         max_tokens=cfg.THINKING_MAX_OUTPUT_TOKENS if cfg.THINKING_ENABLED else 4096,
         reasoning_effort=effort,
         temperature=temperature if temperature is not None else 0.7,
-        model_kwargs=model_kwargs,
+        extra_body=extra_body,
     )
