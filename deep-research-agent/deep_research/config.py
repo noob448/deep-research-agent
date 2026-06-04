@@ -76,11 +76,16 @@ RAG_TOP_K = 3                                         # 每次检索返回的历
 # ─── 推理深度控制 ───────────────────────────────────────
 # DeepSeek V4 Pro 支持 reasoning_effort: "high" 或 "max"
 # max 档: 思维链更长、agentic 任务更深; thinking 模式下 temperature 静默忽略
+# 注意: Researcher 永远不要设 max——5 路并行 max reasoning 会触发限流/超时
 REASONING_EFFORT_SUPERVISOR = "max"
 REASONING_EFFORT_RESEARCHER = "high"
 REASONING_EFFORT_CRITIC = "max"
 THINKING_ENABLED = True
 THINKING_MAX_OUTPUT_TOKENS = 16000
+
+# API 连接稳定性（国内网络 + thinking 长连接）
+REQUEST_TIMEOUT = 300  # 原 180，max 档单次调用可能更长
+MAX_RETRIES = 5        # 原 2，thinking 模式下偶发断连需更多重试
 
 # ─── 研究员深度 ─────────────────────────────────────────
 RESEARCHER_SEARCH_LIMIT = 15            # 原 8，放宽到 15

@@ -47,7 +47,7 @@ def apply_cli_to_config(args):
     from deep_research import config as cfg
     if args.long_thinking:
         cfg.REASONING_EFFORT_SUPERVISOR = "max"
-        cfg.REASONING_EFFORT_RESEARCHER = "max"
+        # 注意: Researcher 保持在 high，5 路并行 max reasoning 会触发 API 限流
         cfg.REASONING_EFFORT_CRITIC = "max"
     elif args.short_thinking:
         cfg.REASONING_EFFORT_SUPERVISOR = "high"
