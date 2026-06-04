@@ -19,6 +19,26 @@ from .config import (
 )
 
 
+# ── 复用 LLM 调用入口 ──────────────────────────────────
+
+def call_summarizer_llm(prompt: str, max_tokens: int = 2048) -> str:
+    """对外暴露的 LLM 调用入口，供 knowledge_base 生成 contextual header 等复用。
+    禁 thinking 提速（contextual header 不需要深度推理）。
+    """
+    model = ChatOpenAI(
+        model=SUMMARIZE_MODEL,
+        api_key=DEEPSEEK_API_KEY,
+        base_url=DEEPSEEK_BASE_URL,
+        timeout=REQUEST_TIMEOUT,
+        max_retries=MAX_RETRIES,
+        temperature=0.3,
+        max_tokens=max_tokens,
+        model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}},
+    )
+    response = model.invoke(prompt)
+    return response.content if hasattr(response, "content") else str(response)
+
+
 def condense_and_categorize(research_content: str, existing_categories: list[str]) -> dict:
     """将研究摘要浓缩并确定归档分类。
 

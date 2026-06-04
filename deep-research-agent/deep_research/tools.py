@@ -408,8 +408,11 @@ def search_knowledge_base(query: str) -> str:
 
     blocks = []
     for r in results:
+        header_line = f"【上下文】{r.get('contextual_header', '')}\n" if r.get('contextual_header') else ""
         blocks.append(
-            f"【内部历史研究·已浓缩｜分类: {r['category']}｜日期: {r['date']}｜"
-            f"课题: {r['topic']}｜相关度: {r['score']}】\n{r['text']}"
+            f"--- 内部历史研究 [{r['score']:.3f}] ---\n"
+            f"分类: {r['category']} | 日期: {r['date']} | 课题: {r['topic']}\n"
+            f"{header_line}"
+            f"{r['text']}"
         )
-    return "\n\n---\n\n".join(blocks)
+    return "\n\n".join(blocks)

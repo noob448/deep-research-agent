@@ -7,17 +7,8 @@
 
 import shutil
 
-from langchain_openai import ChatOpenAI
-
-from .config import (
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    AGENT_MODEL,
-    WORKSPACE_DIR,
-    SKILLS_DIR,
-    REQUEST_TIMEOUT,
-    MAX_RETRIES,
-)
+from .config import WORKSPACE_DIR, SKILLS_DIR
+from .model_factory import make_chat_model
 from .prompts import SUPERVISOR_PROMPT
 from .subagents import create_researcher_subagents
 
@@ -30,15 +21,8 @@ def create_supervisor_agent():
     # ── 确保工作区目录存在 ──────────────────────────────────
     _prepare_workspace()
 
-    # ── 创建 DeepSeek 模型（OpenAI 兼容接口） ─────────────────
-    model = ChatOpenAI(
-        model=AGENT_MODEL,
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
-        timeout=REQUEST_TIMEOUT,
-        max_retries=MAX_RETRIES,
-        temperature=0.7,  # 略高温度鼓励更丰富的推理
-    )
+    # ── 创建 DeepSeek 模型（按角色设定推理深度） ──────────────
+    model = make_chat_model("supervisor")
 
     # ── 设置文件系统后端 ────────────────────────────────────
     backend = _create_backend()

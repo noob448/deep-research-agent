@@ -7,18 +7,13 @@
 工具日志自动带 researcher 编号（通过 tools.py 中的 ContextVar 懒分配）。
 """
 
-from langchain_openai import ChatOpenAI
-
 from .config import (
-    AGENT_MODEL,
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    REQUEST_TIMEOUT,
-    MAX_RETRIES,
     USE_OPENALEX,
     USE_CROSSREF,
     RAG_ENABLED,
+    SUBAGENT_MAX_CONCURRENCY,
 )
+from .model_factory import make_chat_model
 from .tools import web_search, web_fetch, search_openalex, search_crossref, search_knowledge_base
 from .prompts import RESEARCHER_PROMPT
 
@@ -41,15 +36,9 @@ def create_researcher_subagents() -> list[dict]:
         base_tools.append(search_knowledge_base)
 
     specs = []
-    for i in range(1, 4):
+    for i in range(1, SUBAGENT_MAX_CONCURRENCY + 1):
         name = f"researcher-{i}"
-        researcher_model = ChatOpenAI(
-            model=AGENT_MODEL,
-            api_key=DEEPSEEK_API_KEY,
-            base_url=DEEPSEEK_BASE_URL,
-            timeout=REQUEST_TIMEOUT,
-            max_retries=MAX_RETRIES,
-        )
+        researcher_model = make_chat_model("researcher")
 
         specs.append({
             "name": name,
