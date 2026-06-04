@@ -10,10 +10,68 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from deep_research.agent import create_supervisor_agent
-from deep_research.config import WORKSPACE_DIR, RECURSION_LIMIT
+from deep_research.config import (
+    WORKSPACE_DIR, RECURSION_LIMIT, DEBUG,
+    REASONING_EFFORT_SUPERVISOR, REASONING_EFFORT_RESEARCHER,
+    RESEARCHER_SEARCH_LIMIT, SUBAGENT_MAX_CONCURRENCY,
+    THINKING_ENABLED,
+)
 # convert_report 延迟导入——避免 docx 环境问题阻塞启动
 
-TOPIC = sys.argv[1] if len(sys.argv) > 1 else 'skill在AI agent中的作用和使用方法'
+
+# ── CLI 解析 ────────────────────────────────────────────
+
+def parse_cli_args():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Deep Research Agent — 多智能体深度研究系统"
+    )
+    parser.add_argument("topic", nargs="?", default=None, help="研究课题")
+    parser.add_argument("--reasoning-effort", choices=["high","max"], default=None, help="Supervisor 推理档位")
+    parser.add_argument("--researcher-effort", choices=["high","max"], default=None, help="Researcher 推理档位")
+    parser.add_argument("--long-thinking", action="store_true", help="便捷: 全部 max")
+    parser.add_argument("--short-thinking", action="store_true", help="便捷: 全部 high")
+    parser.add_argument("--enable-critic", action="store_true", help="开启 critic 反思回路")
+    parser.add_argument("--critic-rounds", type=int, default=None, help="critic 最多轮数")
+    parser.add_argument("--interactive-plan", action="store_true", help="开启 HITL 计划审批")
+    parser.add_argument("--max-searches", type=int, default=None, help="研究员搜索上限")
+    parser.add_argument("--max-researchers", type=int, default=None, help="并发 researcher 上限")
+    parser.add_argument("--no-hybrid-kb", action="store_true", help="关闭混合检索")
+    parser.add_argument("--no-rerank-kb", action="store_true", help="关闭 KB 重排")
+    parser.add_argument("--no-contextual-rag", action="store_true", help="关闭上下文检索")
+    parser.add_argument("--debug", action="store_true", help="打印 thinking 内容等详情")
+    return parser.parse_args()
+
+
+def apply_cli_to_config(args):
+    from deep_research import config as cfg
+    if args.long_thinking:
+        cfg.REASONING_EFFORT_SUPERVISOR = "max"
+        cfg.REASONING_EFFORT_RESEARCHER = "max"
+        cfg.REASONING_EFFORT_CRITIC = "max"
+    elif args.short_thinking:
+        cfg.REASONING_EFFORT_SUPERVISOR = "high"
+        cfg.REASONING_EFFORT_RESEARCHER = "high"
+        cfg.REASONING_EFFORT_CRITIC = "high"
+    if args.reasoning_effort: cfg.REASONING_EFFORT_SUPERVISOR = args.reasoning_effort
+    if args.researcher_effort: cfg.REASONING_EFFORT_RESEARCHER = args.researcher_effort
+    if args.enable_critic: cfg.CRITIC_ENABLED = True
+    if args.critic_rounds is not None: cfg.CRITIC_MAX_ROUNDS = args.critic_rounds
+    if args.interactive_plan: cfg.INTERACTIVE_PLAN_APPROVAL = True
+    if args.max_searches is not None: cfg.RESEARCHER_SEARCH_LIMIT = args.max_searches
+    if args.max_researchers is not None: cfg.SUBAGENT_MAX_CONCURRENCY = args.max_researchers
+    if args.no_hybrid_kb: cfg.HYBRID_RETRIEVAL_ENABLED = False
+    if args.no_rerank_kb: cfg.KB_RERANK_ENABLED = False
+    if args.no_contextual_rag: cfg.CONTEXTUAL_RETRIEVAL_ENABLED = False
+    cfg.DEBUG = bool(args.debug)
+
+
+# ── 入口 ────────────────────────────────────────────────
+
+_cli_args = parse_cli_args()
+apply_cli_to_config(_cli_args)
+
+TOPIC = _cli_args.topic or input("请输入研究课题: ").strip()
 TS_START = time.time()
 
 def elapsed():
@@ -28,8 +86,12 @@ def stage_label(text):
 
 # ── 创建 Agent ──────────────────────────────────
 print(f'{elapsed()} >>> 正在初始化 Deep Research Agent...', flush=True)
-print(f'{elapsed()}     Supervisor: deepseek-v4-pro (规划 + 委托 + 综合)', flush=True)
-print(f'{elapsed()}     Researcher x3: deepseek-v4-pro (搜索 + 提炼 + 笔记)', flush=True)
+print(f'{elapsed()}     Supervisor: {REASONING_EFFORT_SUPERVISOR}档 | Researcher: {REASONING_EFFORT_RESEARCHER}档', flush=True)
+thinking_status = "ON" if THINKING_ENABLED else "OFF"
+print(f'{elapsed()}     Researcher x{SUBAGENT_MAX_CONCURRENCY} | 搜索上限: {RESEARCHER_SEARCH_LIMIT}次 | '
+      f'Thinking: {thinking_status}', flush=True)
+if DEBUG:
+    print(f'{elapsed()}     [DEBUG] 调试模式开启', flush=True)
 agent = create_supervisor_agent()
 print(f'{elapsed()} >>> Agent 就绪，开始研究', flush=True)
 print(f'{elapsed()}     课题: {TOPIC}', flush=True)

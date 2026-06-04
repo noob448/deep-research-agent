@@ -73,6 +73,44 @@ VECTOR_COLLECTION = "research_history"
 RAG_TOP_K = 3                                         # 每次检索返回的历史研究条数
 # 注：BGE-M3(~1.2GB) + bge-reranker(~300MB) 同时加载约 1.5-2GB 内存
 
+# ─── 推理深度控制 ───────────────────────────────────────
+# DeepSeek V4 Pro 支持 reasoning_effort: "high" 或 "max"
+# max 档: 思维链更长、agentic 任务更深; thinking 模式下 temperature 静默忽略
+REASONING_EFFORT_SUPERVISOR = "max"
+REASONING_EFFORT_RESEARCHER = "high"
+REASONING_EFFORT_CRITIC = "max"
+THINKING_ENABLED = True
+THINKING_MAX_OUTPUT_TOKENS = 16000
+
+# ─── 研究员深度 ─────────────────────────────────────────
+RESEARCHER_SEARCH_LIMIT = 15            # 原 8，放宽到 15
+RESEARCHER_SUFFICIENCY_REQUIRED = True  # 必须自评充分性才能停
+
+# ─── Critic 反思回路 ────────────────────────────────────
+CRITIC_ENABLED = False                  # --enable-critic 开启
+CRITIC_MAX_ROUNDS = 1
+
+# ─── HITL 计划审批 ──────────────────────────────────────
+INTERACTIVE_PLAN_APPROVAL = False       # --interactive-plan 开启
+PLAN_APPROVAL_MAX_REVISIONS = 3
+
+# ─── RAG 混合检索 ───────────────────────────────────────
+HYBRID_RETRIEVAL_ENABLED = True
+HYBRID_RRF_K = 60
+KB_CANDIDATE_K = 20                     # dense 召回候选数
+KB_RERANK_ENABLED = True                # KB 路径加 cross-encoder 重排
+KB_FINAL_TOP_K = 3
+
+# ─── 上下文检索 ─────────────────────────────────────────
+CONTEXTUAL_RETRIEVAL_ENABLED = True
+CHUNK_MAX_CHARS = 1200                  # 单文档超此长度才切块，否则整篇当 chunk
+
+# ─── 任务分配 ───────────────────────────────────────────
+SUBAGENT_MAX_CONCURRENCY = 5            # 原 3，支持动态 1-5 个 researcher
+
+# ─── 调试 ───────────────────────────────────────────────
+DEBUG = False
+
 # ─── 学术来源配置 ────────────────────────────────────────
 # 免费、无需 API key 的开放学术 API，国内通常可达
 ACADEMIC_MAILTO = ""            # 你的邮箱，填入后 OpenAlex/Crossref 响应更快更稳定
