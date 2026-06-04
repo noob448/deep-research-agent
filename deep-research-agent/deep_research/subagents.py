@@ -12,10 +12,11 @@ from .config import (
     USE_CROSSREF,
     RAG_ENABLED,
     SUBAGENT_MAX_CONCURRENCY,
+    CRITIC_ENABLED,
 )
 from .model_factory import make_chat_model
 from .tools import web_search, web_fetch, search_openalex, search_crossref, search_knowledge_base
-from .prompts import RESEARCHER_PROMPT
+from .prompts import RESEARCHER_PROMPT, CRITIC_PROMPT
 
 
 def create_researcher_subagents() -> list[dict]:
@@ -54,3 +55,23 @@ def create_researcher_subagents() -> list[dict]:
             "model": researcher_model,
         })
     return specs
+
+
+def create_critic_subagent() -> dict | None:
+    """创建 critic 审查子智能体（仅 CRITIC_ENABLED 时启用）。
+
+    Critic 只给读权限（read_file + ls），不进行新搜索。
+    """
+    if not CRITIC_ENABLED:
+        return None
+    return {
+        "name": "critic",
+        "description": (
+            "对 /report.md 和 /notes 做批判性审查。识别证据薄弱处、未覆盖的维度、"
+            "矛盾未标注、引用不到位等问题。返回结构化的缺陷清单和补研究建议。"
+            "不进行新的搜索;只读现有产物。"
+        ),
+        "system_prompt": CRITIC_PROMPT,
+        "tools": ["read_file", "ls"],
+        "model": make_chat_model("critic"),
+    }

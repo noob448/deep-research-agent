@@ -416,3 +416,32 @@ def search_knowledge_base(query: str) -> str:
             f"{r['text']}"
         )
     return "\n\n".join(blocks)
+
+
+# ── HITL 计划审批工具 ────────────────────────────────────
+
+@tool
+def request_plan_approval(plan_summary: str, todos: str, briefs: str) -> str:
+    """暂停并展示研究计划等待用户审批。启用 --interactive-plan 后可用。
+    Supervisor 在阶段 1 完成后必须调用此工具。
+    参数: plan_summary(一句话路径), todos(子问题清单), briefs(简报合并)
+    返回: APPROVED(批准) / ABORTED(取消) / REVISE: <建议>(修订)
+    """
+    print("\n" + "=" * 60)
+    print("  计划审批 HITL")
+    print("=" * 60)
+    print(f"\n研究路径: {plan_summary}\n")
+    print(f"子问题清单:\n{todos}\n")
+    print(f"任务简报:\n{briefs}\n")
+    print("-" * 60)
+    print("  [回车] 批准  |  输入建议  |  abort → 取消")
+    print("-" * 60)
+    try:
+        user_input = input(">>> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "ABORTED"
+    if not user_input or user_input.lower() in {"approve", "ok", "yes", "y", "继续", "通过"}:
+        return "APPROVED"
+    if user_input.lower() in {"abort", "stop", "cancel", "取消", "终止"}:
+        return "ABORTED"
+    return f"REVISE: {user_input}"

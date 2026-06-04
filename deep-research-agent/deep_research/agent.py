@@ -7,10 +7,20 @@
 
 import shutil
 
-from .config import WORKSPACE_DIR, SKILLS_DIR
+from .config import (
+    WORKSPACE_DIR, SKILLS_DIR,
+    CRITIC_ENABLED, CRITIC_MAX_ROUNDS,
+    INTERACTIVE_PLAN_APPROVAL, PLAN_APPROVAL_MAX_REVISIONS,
+    SUBAGENT_MAX_CONCURRENCY, RESEARCHER_SEARCH_LIMIT,
+)
 from .model_factory import make_chat_model
-from .prompts import SUPERVISOR_PROMPT
-from .subagents import create_researcher_subagents
+from .prompts import (
+    SUPERVISOR_PROMPT,
+    HITL_INSTRUCTIONS,
+    CRITIC_INSTRUCTIONS,
+)
+from .subagents import create_researcher_subagents, create_critic_subagent
+from .tools import request_plan_approval
 
 
 def create_supervisor_agent():
@@ -30,16 +40,35 @@ def create_supervisor_agent():
     # ── 加载技能 ──────────────────────────────────────────
     skills = _load_skills()
 
-    # ── 创建 3 个独立命名的研究员子智能体 ──────────────────
-    researchers = create_researcher_subagents()
+    # ── 创建子智能体 ──────────────────────────────────────
+    subagents = create_researcher_subagents()
+    critic = create_critic_subagent()
+    if critic:
+        subagents.append(critic)
+
+    # ── 组装 Supervisor prompt（条件注入 HITL / Critic 块）──
+    hitl_block_text = HITL_INSTRUCTIONS.format(
+        plan_revisions=PLAN_APPROVAL_MAX_REVISIONS
+    ) if INTERACTIVE_PLAN_APPROVAL else ""
+
+    critic_block_text = CRITIC_INSTRUCTIONS.format(
+        critic_max_rounds=CRITIC_MAX_ROUNDS
+    ) if CRITIC_ENABLED else ""
+
+    supervisor_prompt = SUPERVISOR_PROMPT.format(
+        max_researchers=SUBAGENT_MAX_CONCURRENCY,
+        search_limit=RESEARCHER_SEARCH_LIMIT,
+        hitl_stage_marker="计划审批 (HITL)" if INTERACTIVE_PLAN_APPROVAL else "(未启用)",
+        critic_stage_marker="Critic 反思" if CRITIC_ENABLED else "(未启用)",
+        hitl_block=hitl_block_text,
+        critic_block=critic_block_text,
+    )
 
     # ── 组装 deep agent ────────────────────────────────────
-    # deepagents 框架会自动添加 write_todos, read_file, write_file,
-    # task 等内置工具——我们不需要手动传入。
     agent = _build_agent(
         model=model,
-        system_prompt=SUPERVISOR_PROMPT,
-        subagents=researchers,
+        system_prompt=supervisor_prompt,
+        subagents=subagents,
         backend=backend,
         skills=skills,
     )
@@ -109,17 +138,20 @@ def _create_backend():
 
 
 def _build_agent(*, model, system_prompt, subagents, backend, skills):
-    """调用 create_deep_agent 组装 supervisor agent。
-
-    deepagents 框架会自动注入 write_todos、read_file、write_file、
-    task 等内置工具——我们只提供业务层的东西。
-    """
+    """调用 create_deep_agent 组装 supervisor agent。"""
     from deepagents import create_deep_agent
 
-    return create_deep_agent(
+    # HITL 工具只给 Supervisor（不给 researcher）
+    extra_tools = [request_plan_approval] if INTERACTIVE_PLAN_APPROVAL else None
+
+    kwargs = dict(
         model=model,
         system_prompt=system_prompt,
         subagents=subagents,
         backend=backend,
         skills=skills,
     )
+    if extra_tools:
+        kwargs["tools"] = extra_tools
+
+    return create_deep_agent(**kwargs)
