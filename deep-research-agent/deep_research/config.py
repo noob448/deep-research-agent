@@ -89,7 +89,7 @@ RESEARCHER_SUFFICIENCY_REQUIRED = True  # 必须自评充分性才能停
 
 # ─── Critic 反思回路 ────────────────────────────────────
 CRITIC_ENABLED = False                  # --enable-critic 开启
-CRITIC_MAX_ROUNDS = 1
+CRITIC_MAX_ROUNDS = 3  # 最多 3 轮反思→补研究→修订循环
 
 # ─── HITL 计划审批 ──────────────────────────────────────
 INTERACTIVE_PLAN_APPROVAL = False       # --interactive-plan 开启

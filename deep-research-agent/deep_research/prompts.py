@@ -273,8 +273,16 @@ CRITIC_PROMPT = """你是「批判审查员」,任务是对当前研究产出做
 
 ### 是否需要补研究 (REQUIRES_REWORK)
 true / false
-(若为 true,Supervisor 必须根据上面"补救建议"派出新 task。
- 若评分 >= 8 且无关键维度缺失,可设为 false。)
+
+**设为 false（质量达标，停止循环）**:
+- 总体评分 >= 8/10
+- 且没有"关键维度完全缺失"
+
+**设为 true（需要补研究）**:
+- 评分 <= 7/10，或存在关键维度完全缺失
+- 核心论断支撑不足（多个要点仅靠单一二手来源）
+
+**注意**: 质量确实够了就不要强行挑刺。若评分极低(0-2分)且无明显补研究路径，标注"建议重新完整研究"。
 ```
 
 ## 审查原则
@@ -291,19 +299,40 @@ true / false
 # ═══════════════════════════════════════════════════════════════════════
 
 CRITIC_INSTRUCTIONS = """
-# 阶段 6:Critic 反思回路
+# 阶段 6:Critic 反思回路（最多 {critic_max_rounds} 轮）
 
-完成阶段 5 报告初稿后:
+完成阶段 5 报告初稿后，进入 Critic 循环。**每轮必须严格记录轮次，不可跳过循环。**
 
-1. 调用 task("critic", "请审查 /report.md 和 /notes/ 下所有笔记,按 CRITIC_PROMPT 输出 [CRITIC_REPORT]")
-2. 读取 critic 返回的报告,找到 REQUIRES_REWORK 字段
-3. 如果 REQUIRES_REWORK = true:
-   a. 根据 critic 的"补救建议",派出 1-3 个新的 researcher task()(不是重派全部,只补缺)
-   b. 每个新 task 用 critic 给出的简报作为 description
-   c. 等 researcher 返回,把新内容并入 /notes
-   d. 修订 /report.md 相关章节(可分节增量写)
-   e. 本轮反思结束
-4. 如果 REQUIRES_REWORK = false:直接进入阶段 7
+## 循环逻辑
 
-本回路最多 {critic_max_rounds} 轮。
+```
+当前轮次 = 1
+循环:
+  1. task("critic", "审查 /report.md 和 /notes/")
+  2. 读取 critic 返回，找到 REQUIRES_REWORK 字段
+  3. 终止条件判断:
+     a) REQUIRES_REWORK = false → 跳出循环，进入阶段 7
+     b) 当前轮次 >= {critic_max_rounds} → 跳出循环，进入阶段 7
+     c) 否则 → 继续循环
+  4. 补研究:
+     a) 根据 critic 的"补救建议"，派出 1-3 个新 researcher
+        (只补缺的维度，不要重派全部)
+     b) 每个新 task 的 description 直接使用 critic 给出的简报
+     c) 等待 researcher 返回 → 新内容并入 /notes
+     d) 修订 /report.md 相关章节
+  5. 当前轮次 += 1，回到步骤 1
+```
+
+## 重要规则
+
+- **每轮必须读取 critic 返回的完整 [CRITIC_REPORT]，不可跳过**
+- **REQUIRES_REWORK = true 且轮次未达上限时，必须派 researcher 补研究**
+- **如果 critic 评分为 0-2 分（极其低质量），不要继续循环——直接停止并告知用户**
+- **补研究的新 researcher 简报要精确**：明确搜什么、不搜什么，预算 ≤ {search_limit} 次
+- 循环结束后（无论达标还是达上限），在 /report.md 末尾追加一段「Critic 修订记录」：
+  ```
+  ## 修订记录
+  - 第 1 轮 Critic 评分 X/10 → 补研究维度: xxx, yyy → 已修订
+  - 第 2 轮 Critic 评分 X/10 → REQUIRES_REWORK=false → 通过
+  ```
 """
