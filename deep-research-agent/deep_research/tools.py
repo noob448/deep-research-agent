@@ -19,7 +19,25 @@ from .config import (
     RERANK_ENABLED, RERANK_TOP_K,
     USE_OPENALEX, USE_CROSSREF, ARXIV_MIRROR, ACADEMIC_MAILTO,
     RAG_ENABLED, RAG_TOP_K,
+    RESEARCHER_SEARCH_LIMIT,
 )
+
+# ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
+_search_budget = {}  # {agent_name: count}
+BUDGET_EXCEEDED_MSG = (
+    "⛔ 搜索预算已用尽（{limit}次）。请立即整理已有发现，"
+    "按 [核心发现] + [关键来源] + [充分性自评] 格式返回结果。"
+)
+
+
+def _check_search_budget() -> str | None:
+    """检查当前 researcher 是否超过搜索预算。返回 None=通过，返回 str=拦截消息。"""
+    tag = _get_tag()
+    count = _search_budget.get(tag, 0)
+    if count >= RESEARCHER_SEARCH_LIMIT:
+        return BUDGET_EXCEEDED_MSG.format(limit=RESEARCHER_SEARCH_LIMIT)
+    _search_budget[tag] = count + 1
+    return None
 
 # web_fetch 重试配置
 MAX_FETCH_RETRIES = 3
@@ -66,6 +84,9 @@ def web_search(query: str) -> str:
     重要：收到搜索结果后，立即用 write_file 将关键发现保存到 /notes/<topic>.md，
     只保留提炼后的要点，不要将原始搜索输出全部留在上下文中。
     """
+    budget_block = _check_search_budget()
+    if budget_block:
+        return budget_block
     _log(f"[搜索] {query[:100]}")
     try:
         with DDGS() as ddgs:
@@ -243,6 +264,9 @@ def search_openalex(query: str, max_results: int = 5) -> str:
     import urllib.parse
     import urllib.request
 
+    budget_block = _check_search_budget()
+    if budget_block:
+        return budget_block
     _log(f"[学术搜索] {query[:100]}")
 
     base = "https://api.openalex.org/works?"
@@ -317,6 +341,9 @@ def search_crossref(query: str, max_results: int = 5) -> str:
     import urllib.parse
     import urllib.request
 
+    budget_block = _check_search_budget()
+    if budget_block:
+        return budget_block
     _log(f"[元数据] {query[:100]}")
 
     params = {

@@ -36,8 +36,8 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 AGENT_MODEL = "deepseek-v4-pro"
 
 # API 调用参数
-REQUEST_TIMEOUT = 180  # 秒（增加以容纳深度思考）
-MAX_RETRIES = 2
+REQUEST_TIMEOUT = 300  # max 档单次调用可能更长
+MAX_RETRIES = 5        # thinking 模式下偶发断连需更多重试
 
 # ─── 搜索配置 ───────────────────────────────────────────
 SEARCH_MAX_RESULTS = 10      # web_search 原始结果数（重排前多搜回）
@@ -83,12 +83,8 @@ REASONING_EFFORT_CRITIC = "max"
 THINKING_ENABLED = True
 THINKING_MAX_OUTPUT_TOKENS = 16000
 
-# API 连接稳定性（国内网络 + thinking 长连接）
-REQUEST_TIMEOUT = 300  # 原 180，max 档单次调用可能更长
-MAX_RETRIES = 5        # 原 2，thinking 模式下偶发断连需更多重试
-
 # ─── 研究员深度 ─────────────────────────────────────────
-RESEARCHER_SEARCH_LIMIT = 15            # 原 8，放宽到 15
+RESEARCHER_SEARCH_LIMIT = 20            # 代码层硬拦截，超过直接返回"预算用尽"
 RESEARCHER_SUFFICIENCY_REQUIRED = True  # 必须自评充分性才能停
 
 # ─── Critic 反思回路 ────────────────────────────────────
