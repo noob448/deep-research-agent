@@ -86,6 +86,8 @@ THINKING_MAX_OUTPUT_TOKENS = 16000
 # ─── 研究员深度 ─────────────────────────────────────────
 RESEARCHER_SEARCH_LIMIT = 20            # 代码层硬拦截，超过直接返回"预算用尽"
 RESEARCHER_SUFFICIENCY_REQUIRED = True  # 必须自评充分性才能停
+RESEARCH_TIMEOUT_MINUTES = 0            # 研究阶段时限（分钟），0=不限。fast模式设为5
+COUNT_FAILED_SEARCHES = False           # 失败/空结果是否计入搜索预算。fast=True, deep/max=False
 
 # ─── Critic 反思回路 ────────────────────────────────────
 CRITIC_ENABLED = False                  # --enable-critic 开启

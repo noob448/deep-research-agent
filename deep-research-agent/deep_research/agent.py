@@ -12,6 +12,7 @@ from .config import (
     CRITIC_ENABLED, CRITIC_MAX_ROUNDS,
     INTERACTIVE_PLAN_APPROVAL, PLAN_APPROVAL_MAX_REVISIONS,
     SUBAGENT_MAX_CONCURRENCY, RESEARCHER_SEARCH_LIMIT,
+    RESEARCH_TIMEOUT_MINUTES,
 )
 from .model_factory import make_chat_model
 from .prompts import (
@@ -55,6 +56,15 @@ def create_supervisor_agent():
         critic_max_rounds=CRITIC_MAX_ROUNDS
     ) if CRITIC_ENABLED else ""
 
+    time_constraint_text = ""
+    if RESEARCH_TIMEOUT_MINUTES > 0:
+        time_constraint_text = (
+            f"\n## ⏱️ 时间限制\n\n"
+            f"整个研究阶段（阶段1-4）必须在 **{RESEARCH_TIMEOUT_MINUTES} 分钟**内完成。"
+            f"达到时限后，即使信息不完美也必须立即进入阶段5撰写报告。"
+            f"不要在单个 researcher 上等太久——若某个 researcher 在2分钟内无响应，直接基于已有信息写报告。\n"
+        )
+
     supervisor_prompt = SUPERVISOR_PROMPT.format(
         max_researchers=SUBAGENT_MAX_CONCURRENCY,
         search_limit=RESEARCHER_SEARCH_LIMIT,
@@ -62,6 +72,7 @@ def create_supervisor_agent():
         critic_stage_marker="Critic 反思" if CRITIC_ENABLED else "(未启用)",
         hitl_block=hitl_block_text,
         critic_block=critic_block_text,
+        time_constraint=time_constraint_text,
     )
 
     # ── 组装 deep agent ────────────────────────────────────

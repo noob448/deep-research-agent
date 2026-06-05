@@ -19,26 +19,56 @@ from .config import (
     RERANK_ENABLED, RERANK_TOP_K,
     USE_OPENALEX, USE_CROSSREF, ARXIV_MIRROR, ACADEMIC_MAILTO,
     RAG_ENABLED, RAG_TOP_K,
-    RESEARCHER_SEARCH_LIMIT,
+    RESEARCHER_SEARCH_LIMIT, COUNT_FAILED_SEARCHES,
 )
 
 # ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
 _search_budget = {}     # {agent_name: count}
-_search_cache = {}      # {query_hash: result}  去重缓存
+_search_cache = {}      # {agent_name: {query_hash: True}}  每个 researcher 独立的去重缓存
+_research_start_time = None     # 研究开始时间戳，由 run_test.py 设置
+_research_timeout_seconds = 0   # 超时秒数，0=不限
 BUDGET_EXCEEDED_MSG = (
     "⛔ 搜索预算已用尽（{limit}次）。请**立即停止所有搜索**，不要尝试其他搜索工具。"
     "现在直接整理已有发现，按 [核心发现] + [关键来源] + [充分性自评] 格式返回最终结果，不要拖延。"
 )
 DUPLICATE_MSG = (
-    "⚠️ 你已搜索过相同或高度相似的查询。请换一个不同的角度或更具体的措辞，不要重复。"
+    "[!] 你已搜索过相同或高度相似的查询。请换一个不同的角度或更具体的措辞，不要重复。"
     "（此条不计入搜索预算）"
+)
+TIMEOUT_BLOCK_MSG = (
+    "⏰ 研究时限已到（{minutes}分钟）！立即停止所有搜索，"
+    "直接整理已有发现返回。不要再调用任何搜索工具。"
 )
 
 
+def set_research_timeout(minutes: int):
+    """由 run_test.py 在 Agent 启动前调用，设置硬时限。0=不限。"""
+    global _research_start_time, _research_timeout_seconds
+    if minutes > 0:
+        _research_start_time = time.time()
+        _research_timeout_seconds = minutes * 60
+    else:
+        _research_start_time = None
+        _research_timeout_seconds = 0
+
+
+def _check_time_limit() -> str | None:
+    """检查是否超过研究时限。返回 None=未超时，返回 str=拦截消息。"""
+    if _research_start_time is None or _research_timeout_seconds <= 0:
+        return None
+    elapsed = time.time() - _research_start_time
+    if elapsed >= _research_timeout_seconds:
+        return TIMEOUT_BLOCK_MSG.format(minutes=_research_timeout_seconds // 60)
+    return None
+
+
 def _check_search_budget(query: str = "") -> str | None:
-    """检查当前 researcher 是否超过搜索预算。返回 None=通过，返回 str=拦截消息。
-    query 不为空时，先检查去重缓存——相同查询直接返回缓存结果（不计预算）。
-    """
+    """检查预算是否已用完 + 时限是否已到 + 去重检查（不递增计数）。"""
+    # 时限检查优先
+    time_block = _check_time_limit()
+    if time_block:
+        return time_block
+
     tag = _get_tag()
     count = _search_budget.get(tag, 0)
     if count >= RESEARCHER_SEARCH_LIMIT:
@@ -51,28 +81,29 @@ def _check_search_budget(query: str = "") -> str | None:
             )
         return BUDGET_EXCEEDED_MSG.format(limit=RESEARCHER_SEARCH_LIMIT)
 
-    # 去重检查：相同查询 → 缓存命中，不计预算
+    # 去重检查（按 researcher 隔离）
     if query:
         qhash = query.strip().lower()
-        if qhash in _search_cache:
-            _log(f"[去重] 缓存命中，跳过: {query[:80]}")
-            return None  # 返回 None 但 _cached_result 需要让调用者知道
-        _search_cache[qhash] = True
+        tag_cache = _search_cache.setdefault(tag, {})
+        if qhash in tag_cache:
+            _log(f"[去重] 重复查询，跳过: {query[:80]}")
+            return DUPLICATE_MSG
 
-    _search_budget[tag] = count + 1
-    return None
+    return None  # 预算充足且非重复
 
 
-def _mark_duplicate_or_count(query: str) -> str | None:
-    """如果查询重复，返回缓存提示（不计预算）。否则计数。"""
+def _commit_search(query: str = ""):
+    """提交一次搜索计数（在搜索成功后调用）。
+    COUNT_FAILED_SEARCHES=True 时始终计数，False 时仅成功计数。
+    """
     tag = _get_tag()
-    qhash = query.strip().lower()
-    if qhash in _search_cache:
-        _log(f"[去重] 重复查询: {query[:80]}")
-        return DUPLICATE_MSG
-    _search_cache[qhash] = True
+    # 标记去重缓存
+    if query:
+        qhash = query.strip().lower()
+        tag_cache = _search_cache.setdefault(tag, {})
+        tag_cache[qhash] = True
+    # 递增计数
     _search_budget[tag] = _search_budget.get(tag, 0) + 1
-    return None
 
 # web_fetch 重试配置
 MAX_FETCH_RETRIES = 3
@@ -122,10 +153,6 @@ def web_search(query: str) -> str:
     budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
-    # 去重检查
-    dup = _mark_duplicate_or_count(query)
-    if dup:
-        return dup
     _log(f"[搜索] {query[:100]}")
     try:
         with DDGS() as ddgs:
@@ -133,8 +160,12 @@ def web_search(query: str) -> str:
 
         if not results:
             _log(f"[搜索] 无结果")
+            if COUNT_FAILED_SEARCHES:
+                _commit_search(query)
             return f"搜索 '{query}' 没有返回结果。"
 
+        # 搜索成功 → 计数
+        _commit_search(query)
         _log(f"[搜索] 找到 {len(results)} 条结果（重排前）")
 
         # ── 重排：多搜回 → 精排 → 少留 ──
@@ -163,6 +194,8 @@ def web_search(query: str) -> str:
 
     except Exception as e:
         _log(f"[搜索] 失败: {e}")
+        if COUNT_FAILED_SEARCHES:
+            _commit_search(query)
         return f"搜索失败: {type(e).__name__}: {e}"
 
 
@@ -306,9 +339,6 @@ def search_openalex(query: str, max_results: int = 5) -> str:
     budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
-    dup = _mark_duplicate_or_count(query)
-    if dup:
-        return dup
     _log(f"[学术搜索] {query[:100]}")
 
     base = "https://api.openalex.org/works?"
@@ -330,13 +360,19 @@ def search_openalex(query: str, max_results: int = 5) -> str:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         _log(f"[学术搜索] 失败: {e}")
+        if COUNT_FAILED_SEARCHES:
+            _commit_search(query)
         return f"OpenAlex 检索失败（网络或服务问题）：{type(e).__name__}: {e}"
 
     works = data.get("results", [])
     if not works:
         _log(f"[学术搜索] 无结果")
+        if COUNT_FAILED_SEARCHES:
+            _commit_search(query)
         return "OpenAlex 未找到相关论文。请尝试更换更具体的学术关键词。"
 
+    # 搜索成功 → 计数
+    _commit_search(query)
     _log(f"[学术搜索] 找到 {len(works)} 篇论文")
 
     for i, w in enumerate(works, 1):
@@ -386,9 +422,6 @@ def search_crossref(query: str, max_results: int = 5) -> str:
     budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
-    dup = _mark_duplicate_or_count(query)
-    if dup:
-        return dup
     _log(f"[元数据] {query[:100]}")
 
     params = {
@@ -410,12 +443,19 @@ def search_crossref(query: str, max_results: int = 5) -> str:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         _log(f"[元数据] 失败: {e}")
+        if COUNT_FAILED_SEARCHES:
+            _commit_search(query)
         return f"Crossref 检索失败：{type(e).__name__}: {e}"
 
     items = data.get("message", {}).get("items", [])
     if not items:
         _log(f"[元数据] 无结果")
+        if COUNT_FAILED_SEARCHES:
+            _commit_search(query)
         return "Crossref 未找到相关条目。"
+
+    # 搜索成功 → 计数
+    _commit_search(query)
 
     _log(f"[元数据] 找到 {len(items)} 条")
 

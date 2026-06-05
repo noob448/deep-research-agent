@@ -48,6 +48,10 @@ def apply_cli_to_config(args):
         cfg.REASONING_EFFORT_SUPERVISOR = "high"
         cfg.REASONING_EFFORT_RESEARCHER = "high"
         cfg.REASONING_EFFORT_CRITIC = "high"
+        cfg.RESEARCHER_SEARCH_LIMIT = 5       # fast: 快速搜索
+        cfg.RESEARCH_TIMEOUT_MINUTES = 5      # fast: 5分钟时限
+        cfg.SUBAGENT_MAX_CONCURRENCY = 3      # fast: 减少并发
+        cfg.COUNT_FAILED_SEARCHES = True      # fast: 失败也计，追求速度
     if args.reasoning_effort: cfg.REASONING_EFFORT_SUPERVISOR = args.reasoning_effort
     if args.researcher_effort: cfg.REASONING_EFFORT_RESEARCHER = args.researcher_effort
     if args.enable_critic: cfg.CRITIC_ENABLED = True
@@ -80,6 +84,9 @@ def stage_label(text):
     print(f'{"="*60}', flush=True)
 
 # ── 创建 Agent ──────────────────────────────────
+# 设置研究时限（硬约束：超时后 researcher 工具直接拒绝搜索）
+from deep_research.tools import set_research_timeout
+set_research_timeout(cfg.RESEARCH_TIMEOUT_MINUTES)
 print(f'{elapsed()} >>> 正在初始化 Deep Research Agent...', flush=True)
 thinking_status = "ON" if cfg.THINKING_ENABLED else "OFF"
 print(f'{elapsed()}     Supervisor: {cfg.REASONING_EFFORT_SUPERVISOR}档 | Researcher: {cfg.REASONING_EFFORT_RESEARCHER}档', flush=True)
