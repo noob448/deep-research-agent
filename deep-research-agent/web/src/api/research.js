@@ -36,6 +36,10 @@ export function streamResearch(topic, effort, { onLog, onDone, onError }) {
   }).catch(onError)
 }
 
+export function stopResearch() {
+  return fetch('/api/stop', { method: 'POST' }).then(r => r.json())
+}
+
 export function getDownloadUrl(filename) {
   return `/api/download/${filename}`
 }

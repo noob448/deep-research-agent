@@ -18,6 +18,7 @@
           <span v-if="running" class="spinner"></span>
           <span>{{ running ? '研究中...' : '开始研究' }}</span>
         </button>
+        <button v-if="running" class="stop-btn" @click="stopResearch">⏹ 终止</button>
       </div>
     </div>
 
@@ -49,7 +50,7 @@
 
 <script setup>
 import { ref, nextTick, watch } from 'vue'
-import { streamResearch, getDownloadUrl } from '@/api/research'
+import { streamResearch, stopResearch as apiStop, getDownloadUrl } from '@/api/research'
 
 const topic = ref('')
 const effort = ref('deep')
@@ -66,6 +67,12 @@ function timeStr() {
 function isDim(log) {
   const txt = log.text
   return !txt || txt.startsWith('Loading weights') || txt.startsWith('Fetching')
+}
+
+async function stopResearch() {
+  await apiStop()
+  running.value = false
+  logs.value.push({ time: timeStr(), text: '[系统] 用户终止了研究' })
 }
 
 function startResearch() {
@@ -127,6 +134,19 @@ function startResearch() {
   white-space: nowrap;
 }
 .start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.stop-btn {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  background: transparent;
+  color: #ef4444;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.stop-btn:hover { background: #ef4444; color: #fff; }
 .effort-select {
   padding: 0.85rem 1rem;
   border: 1px solid #334155;

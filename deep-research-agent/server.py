@@ -29,7 +29,7 @@ CORS(app)
 _running_tasks = {}
 
 
-def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue):
+def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue, proc_holder: dict):
     """在子线程中启动 agent，逐行捕获 stdout 放入队列。"""
     cmd = [sys.executable, "run_test.py", topic]
     if effort == "deep":
@@ -47,6 +47,7 @@ def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue)
             errors="replace",
             bufsize=1,
         )
+        proc_holder["proc"] = proc
         for line in proc.stdout:
             output_queue.put({"type": "log", "data": line.rstrip()})
         proc.wait()
@@ -54,7 +55,7 @@ def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue)
     except Exception as e:
         output_queue.put({"type": "error", "data": str(e)})
     finally:
-        output_queue.put(None)  # 结束信号
+        output_queue.put(None)
 
 
 @app.route("/api/research", methods=["POST"])
@@ -68,9 +69,10 @@ def start_research():
 
     task_id = f"task_{len(_running_tasks) + 1}"
     output_queue = queue.Queue()
-    thread = threading.Thread(target=_run_agent, args=(topic, task_id, effort, output_queue), daemon=True)
+    proc_holder = {}
+    thread = threading.Thread(target=_run_agent, args=(topic, task_id, effort, output_queue, proc_holder), daemon=True)
     thread.start()
-    _running_tasks[task_id] = {"thread": thread, "queue": output_queue}
+    _running_tasks[task_id] = {"thread": thread, "queue": output_queue, "proc": proc_holder}
 
     def generate():
         try:
@@ -120,6 +122,20 @@ def index():
 @app.route("/assets/<path:filename>")
 def serve_assets(filename):
     return send_from_directory(str(DIST_DIR / "assets"), filename)
+
+
+@app.route("/api/stop", methods=["POST"])
+def stop_research():
+    """终止当前所有正在运行的研究任务。"""
+    stopped = 0
+    for task_id, task in list(_running_tasks.items()):
+        proc = task.get("proc", {}).get("proc")
+        if proc and proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=5)
+            stopped += 1
+        _running_tasks.pop(task_id, None)
+    return jsonify({"stopped": stopped})
 
 
 @app.route("/api/health")
