@@ -25,3 +25,5 @@ deep-research-agent/history-database/
 # OS
 .DS_Store
 Thumbs.db
+node_modules/
+web/dist/
