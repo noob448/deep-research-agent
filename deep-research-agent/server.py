@@ -13,14 +13,16 @@ import threading
 import subprocess
 from pathlib import Path
 
-from flask import Flask, Response, request, send_file, jsonify
+from flask import Flask, Response, request, send_file, send_from_directory, jsonify
 from flask_cors import CORS
 
 # 确保项目路径
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-app = Flask(__name__, static_folder="web/dist", static_url_path="")
+DIST_DIR = PROJECT_ROOT / "web" / "dist"
+
+app = Flask(__name__)
 CORS(app)
 
 # 运行中的任务
@@ -104,9 +106,27 @@ def download_file(filename):
     )
 
 
+@app.route("/")
+def index():
+    return send_file(str(DIST_DIR / "index.html"))
+
+
+@app.route("/assets/<path:filename>")
+def serve_assets(filename):
+    return send_from_directory(str(DIST_DIR / "assets"), filename)
+
+
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.errorhandler(404)
+def fallback(e):
+    """Vue history 模式：未匹配的路径回退到 index.html"""
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    return send_file(str(DIST_DIR / "index.html"))
 
 
 if __name__ == "__main__":
