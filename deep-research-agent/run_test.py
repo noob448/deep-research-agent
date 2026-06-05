@@ -134,10 +134,7 @@ try:
                     if name == 'write_todos':
                         todos = args.get('todos', [])
                         stage = 'plan'
-                        once_stage('plan', f'阶段 1/4: 制定计划 ({len(todos)} 个子问题)')
-                        # 只在首次展示子问题列表
-                        if 'plan' not in stage_shown or len(todos) > 0:
-                            pass  # 列表已展示，后续更新不重复打印
+                        once_stage('plan', f'阶段 1/5: 制定计划 ({len(todos)} 个子问题)')
                         for i, t in enumerate(todos[:8], 1):
                             status = t.get('status', '?')
                             icon = '>' if status == 'in_progress' else ' '
@@ -150,24 +147,28 @@ try:
                             note_file = desc.split('/notes/')[1].split('.md')[0].strip()
                             note_file = f' -> /notes/{note_file}.md'
                         researcher_count += 1
-                        once_stage('delegate', '阶段 2/4: 并行委托研究员')
+                        once_stage('delegate', '阶段 2/5: 并行委托研究员')
                         print(f'{elapsed()}   >>> 派出 Researcher #{researcher_count}: {desc[:120]}...{note_file}', flush=True)
 
                     elif name == 'read_file':
                         fp = args.get('file_path', '')
-                        once_stage('review', '阶段 3/4: 阅读笔记与检查')
+                        if stage == 'delegate' or stage == 'plan':
+                            once_stage('review', '阶段 3/5: 归档笔记与检查')
                         print(f'{elapsed()}   >> 阅读笔记: {fp}', flush=True)
 
                     elif name == 'write_file':
                         fp = args.get('file_path', '')
                         if 'report.md' in fp:
-                            once_stage('report', '阶段 4/4: 撰写最终报告')
+                            once_stage('report', '阶段 4/5: 撰写最终报告')
                             print(f'{elapsed()}   >>> 正在写入: {fp}', flush=True)
-                        else:
+                        elif '/notes/' in fp:
+                            once_stage('review', '阶段 3/5: 归档笔记与检查')
                             print(f'{elapsed()}   >> 写入笔记: {fp}', flush=True)
+                        else:
+                            print(f'{elapsed()}   >> 写入文件: {fp}', flush=True)
 
                     elif name == 'ls':
-                        once_stage('review', '阶段 3/4: 检查研究产出')
+                        once_stage('review', '阶段 3/5: 检查研究产出')
                         print(f'{elapsed()}   >> 列出文件: {args.get("path", "/")}', flush=True)
 
                     else:
