@@ -25,8 +25,8 @@ from .config import (
 # ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
 _search_budget = {}  # {agent_name: count}
 BUDGET_EXCEEDED_MSG = (
-    "⛔ 搜索预算已用尽（{limit}次）。请立即整理已有发现，"
-    "按 [核心发现] + [关键来源] + [充分性自评] 格式返回结果。"
+    "⛔ 搜索预算已用尽（{limit}次）。请**立即停止所有搜索**，不要尝试其他搜索工具。"
+    "现在直接整理已有发现，按 [核心发现] + [关键来源] + [充分性自评] 格式返回最终结果，不要拖延。"
 )
 
 
@@ -35,6 +35,13 @@ def _check_search_budget() -> str | None:
     tag = _get_tag()
     count = _search_budget.get(tag, 0)
     if count >= RESEARCHER_SEARCH_LIMIT:
+        blocked = _search_budget.get(f"{tag}_blocked", 0) + 1
+        _search_budget[f"{tag}_blocked"] = blocked
+        if blocked >= 3:
+            return (
+                f"⛔ 你已经连续 {blocked} 次尝试搜索但预算已用尽。"
+                f"**请立即返回最终结果，不要再调用任何搜索工具。**"
+            )
         return BUDGET_EXCEEDED_MSG.format(limit=RESEARCHER_SEARCH_LIMIT)
     _search_budget[tag] = count + 1
     return None

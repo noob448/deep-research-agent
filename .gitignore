@@ -27,3 +27,5 @@ deep-research-agent/history-database/
 Thumbs.db
 node_modules/
 web/dist/
+report.md
+report.docx
