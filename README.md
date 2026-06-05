@@ -50,7 +50,16 @@ python run_test.py "什么是AI Agent?"
 
 首次运行会自动下载 BGE-M3 嵌入模型（~1.2GB）和 BGE reranker（~300MB），之后缓存。预计 5-10 分钟完成，产出 `workspace/report.md` 和 `workspace/report.docx`。
 
-### 4. CLI 选项
+### 4. Web 界面（可选）
+
+```bash
+python server.py
+# 浏览器打开 http://localhost:5001
+```
+
+提供可视化操作界面：输入课题 → 实时日志 → 下载报告。不需要了解命令行。
+
+### 5. CLI 选项
 
 ```bash
 # 基础用法
@@ -79,6 +88,11 @@ python build_index.py --rebuild
 # 查看所有选项
 python run_test.py --help
 ```
+
+## 使用提醒
+
+- **每次新课题会清空上一次的 `workspace/`**（包括 report.md / report.docx / notes）。如需保留，请在运行前下载或备份。历史摘要已自动归档到 `history-database/`，向量库 `vector-store/` 不受影响。
+- **课题描述越具体，研究效果越好**。宽泛的提问（如"AI 是什么"）会导致研究员搜索方向分散，而具体的课题（如"2024 年多模态大模型的主流架构范式及代表模型对比"）能产出更聚焦、更深入的报告。
 
 ## 项目结构
 
