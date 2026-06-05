@@ -18,20 +18,7 @@ import time as _time
 from pathlib import Path
 from typing import Optional
 
-from .config import (
-    EMBEDDING_MODEL,
-    VECTOR_STORE_DIR,
-    VECTOR_COLLECTION,
-    RAG_TOP_K,
-    RAG_ENABLED,
-    HYBRID_RETRIEVAL_ENABLED,
-    HYBRID_RRF_K,
-    KB_CANDIDATE_K,
-    KB_RERANK_ENABLED,
-    KB_FINAL_TOP_K,
-    CONTEXTUAL_RETRIEVAL_ENABLED,
-    CHUNK_MAX_CHARS,
-)
+from . import config as cfg
 
 # ── 线程安全 ────────────────────────────────────────────
 _bge_lock = threading.Lock()
@@ -44,7 +31,7 @@ _bge_model = None
 def _get_sentence_transformer():
     """sentence-transformers 加载 BGE-M3（dense 嵌入，已有本地缓存）。"""
     from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(EMBEDDING_MODEL)
+    return SentenceTransformer(cfg.EMBEDDING_MODEL)
 
 
 _bge_flag = None
@@ -59,7 +46,7 @@ def _get_flag_model():
             if _bge_flag is None:
                 try:
                     from FlagEmbedding import BGEM3FlagModel
-                    _bge_flag = BGEM3FlagModel(EMBEDDING_MODEL, use_fp16=True)
+                    _bge_flag = BGEM3FlagModel(cfg.EMBEDDING_MODEL, use_fp16=True)
                 except Exception:
                     _bge_flag = False  # 标记为不可用
     return _bge_flag if _bge_flag is not False else None
@@ -71,7 +58,7 @@ def encode_doc(text: str) -> dict:
     dense = st_model.encode([text], normalize_embeddings=True)[0].tolist()
 
     sparse = {}
-    if HYBRID_RETRIEVAL_ENABLED:
+    if cfg.HYBRID_RETRIEVAL_ENABLED:
         flag = _get_flag_model()
         if flag is not None:
             try:
@@ -90,10 +77,10 @@ def _get_collection():
     with _collection_lock:
         for attempt in range(3):
             try:
-                VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
-                client = chromadb.PersistentClient(path=str(VECTOR_STORE_DIR))
+                cfg.VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
+                client = chromadb.PersistentClient(path=str(cfg.VECTOR_STORE_DIR))
                 return client.get_or_create_collection(
-                    name=VECTOR_COLLECTION,
+                    name=cfg.VECTOR_COLLECTION,
                     metadata={"hnsw:space": "cosine"},
                 )
             except Exception as e:
@@ -187,7 +174,7 @@ def _rrf_fuse(dense_ranking: list, sparse_ranking: list, k: int) -> list:
 # ── 公开 API ────────────────────────────────────────────
 
 def index_document(file_path: str, category: str = None, topic: str = None, date_str: str = None) -> int:
-    """索引一个归档文档。短文档整篇当 chunk，长文档按 CHUNK_MAX_CHARS 切块。
+    """索引一个归档文档。短文档整篇当 chunk，长文档按 cfg.CHUNK_MAX_CHARS 切块。
 
     新 schema 元数据: parent_id, chunk_index, sparse_weights, contextual_header
     旧版调用 (只传 file_path) 仍兼容，此时从路径自动解析 category/topic/date。
@@ -207,10 +194,10 @@ def index_document(file_path: str, category: str = None, topic: str = None, date
         date_str = date_str or meta["date"]
 
     parent_id = hashlib.md5(str(file_path).encode("utf-8")).hexdigest()
-    chunks = _chunk_text(text, CHUNK_MAX_CHARS)
+    chunks = _chunk_text(text, cfg.CHUNK_MAX_CHARS)
     headers = []
     for c in chunks:
-        if CONTEXTUAL_RETRIEVAL_ENABLED:
+        if cfg.CONTEXTUAL_RETRIEVAL_ENABLED:
             headers.append(_generate_contextual_header(text, c, topic, category))
         else:
             headers.append("")
@@ -233,7 +220,7 @@ def index_document(file_path: str, category: str = None, topic: str = None, date
             "date": date_str,
             "contextual_header": header,
             "sparse_weights": json.dumps(enc["sparse"], ensure_ascii=False),
-            "indexed_with_contextual": CONTEXTUAL_RETRIEVAL_ENABLED,
+            "indexed_with_contextual": cfg.CONTEXTUAL_RETRIEVAL_ENABLED,
         })
 
     with _collection_lock:
@@ -249,7 +236,7 @@ def index_document(file_path: str, category: str = None, topic: str = None, date
 
 def search_kb(query: str, top_k: int = None, category: Optional[str] = None) -> list[dict]:
     """混合检索主入口: dense 召回 → sparse 计分 → RRF 融合 → cross-encoder 重排 → 父文档去重 → top_k。"""
-    top_k = top_k or KB_FINAL_TOP_K
+    top_k = top_k or cfg.KB_FINAL_TOP_K
 
     q_enc = encode_doc(query)
     where = {"category": category} if category else None
@@ -259,7 +246,7 @@ def search_kb(query: str, top_k: int = None, category: Optional[str] = None) -> 
 
     dense_res = collection.query(
         query_embeddings=[q_enc["dense"]],
-        n_results=KB_CANDIDATE_K,
+        n_results=cfg.KB_CANDIDATE_K,
         where=where,
     )
     if not dense_res["ids"] or not dense_res["ids"][0]:
@@ -275,19 +262,19 @@ def search_kb(query: str, top_k: int = None, category: Optional[str] = None) -> 
     }
 
     # 混合 or 纯 dense
-    if HYBRID_RETRIEVAL_ENABLED:
+    if cfg.HYBRID_RETRIEVAL_ENABLED:
         sparse_pairs = []
         for cid, payload in id_to_payload.items():
             d_sparse = json.loads(payload["meta"].get("sparse_weights", "{}"))
             s = _sparse_score(q_enc["sparse"], d_sparse)
             sparse_pairs.append((cid, s))
         sparse_ranking = [cid for cid, _ in sorted(sparse_pairs, key=lambda x: -x[1])]
-        ranked_ids = _rrf_fuse(cand_ids, sparse_ranking, k=HYBRID_RRF_K)
+        ranked_ids = _rrf_fuse(cand_ids, sparse_ranking, k=cfg.HYBRID_RRF_K)
     else:
         ranked_ids = cand_ids
 
     # KB 重排
-    if KB_RERANK_ENABLED:
+    if cfg.KB_RERANK_ENABLED:
         from deep_research.rerank import _get_reranker
         try:
             reranker = _get_reranker()

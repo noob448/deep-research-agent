@@ -9,7 +9,7 @@
 
 from functools import lru_cache
 
-from .config import RERANK_MODEL, RERANK_TOP_K
+from . import config as cfg
 
 
 @lru_cache(maxsize=1)
@@ -17,7 +17,7 @@ def _get_reranker():
     """延迟加载并缓存 reranker 模型（首次调用自动下载，约 300MB）。"""
     from sentence_transformers import CrossEncoder
 
-    return CrossEncoder(RERANK_MODEL)
+    return CrossEncoder(cfg.RERANK_MODEL)
 
 
 def rerank_results(query: str, results: list, top_k: int | None = None) -> list:
@@ -26,7 +26,7 @@ def rerank_results(query: str, results: list, top_k: int | None = None) -> list:
     Args:
         query: 搜索查询
         results: 形如 [{"title":..., "url":..., "body":...}, ...]（DDGS 格式）
-        top_k: 保留条数，默认取 config.RERANK_TOP_K
+        top_k: 保留条数，默认取 config.cfg.RERANK_TOP_K
 
     Returns:
         重排后的结果列表（长度 ≤ top_k）
@@ -34,7 +34,7 @@ def rerank_results(query: str, results: list, top_k: int | None = None) -> list:
     if not results or len(results) <= 1:
         return results
 
-    top_k = top_k or RERANK_TOP_K
+    top_k = top_k or cfg.RERANK_TOP_K
     if top_k >= len(results):
         return results  # 不需要截断
 

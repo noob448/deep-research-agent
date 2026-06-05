@@ -7,13 +7,7 @@
 
 import shutil
 
-from .config import (
-    WORKSPACE_DIR, SKILLS_DIR,
-    CRITIC_ENABLED, CRITIC_MAX_ROUNDS,
-    INTERACTIVE_PLAN_APPROVAL, PLAN_APPROVAL_MAX_REVISIONS,
-    SUBAGENT_MAX_CONCURRENCY, RESEARCHER_SEARCH_LIMIT,
-    RESEARCH_TIMEOUT_MINUTES,
-)
+from . import config as cfg
 from .model_factory import make_chat_model
 from .prompts import (
     SUPERVISOR_PROMPT,
@@ -49,27 +43,28 @@ def create_supervisor_agent():
 
     # ── 组装 Supervisor prompt（条件注入 HITL / Critic 块）──
     hitl_block_text = HITL_INSTRUCTIONS.format(
-        plan_revisions=PLAN_APPROVAL_MAX_REVISIONS
-    ) if INTERACTIVE_PLAN_APPROVAL else ""
+        plan_revisions=cfg.PLAN_APPROVAL_MAX_REVISIONS
+    ) if cfg.INTERACTIVE_PLAN_APPROVAL else ""
 
     critic_block_text = CRITIC_INSTRUCTIONS.format(
-        critic_max_rounds=CRITIC_MAX_ROUNDS
-    ) if CRITIC_ENABLED else ""
+        critic_max_rounds=cfg.CRITIC_MAX_ROUNDS,
+        search_limit=cfg.RESEARCHER_SEARCH_LIMIT,
+    ) if cfg.CRITIC_ENABLED else ""
 
     time_constraint_text = ""
-    if RESEARCH_TIMEOUT_MINUTES > 0:
+    if cfg.RESEARCH_TIMEOUT_MINUTES > 0:
         time_constraint_text = (
             f"\n## ⏱️ 时间限制\n\n"
-            f"整个研究阶段（阶段1-4）必须在 **{RESEARCH_TIMEOUT_MINUTES} 分钟**内完成。"
+            f"整个研究阶段（阶段1-4）必须在 **{cfg.RESEARCH_TIMEOUT_MINUTES} 分钟**内完成。"
             f"达到时限后，即使信息不完美也必须立即进入阶段5撰写报告。"
             f"不要在单个 researcher 上等太久——若某个 researcher 在2分钟内无响应，直接基于已有信息写报告。\n"
         )
 
     supervisor_prompt = SUPERVISOR_PROMPT.format(
-        max_researchers=SUBAGENT_MAX_CONCURRENCY,
-        search_limit=RESEARCHER_SEARCH_LIMIT,
-        hitl_stage_marker="计划审批 (HITL)" if INTERACTIVE_PLAN_APPROVAL else "(未启用)",
-        critic_stage_marker="Critic 反思" if CRITIC_ENABLED else "(未启用)",
+        max_researchers=cfg.SUBAGENT_MAX_CONCURRENCY,
+        search_limit=cfg.RESEARCHER_SEARCH_LIMIT,
+        hitl_stage_marker="计划审批 (HITL)" if cfg.INTERACTIVE_PLAN_APPROVAL else "(未启用)",
+        critic_stage_marker="Critic 反思" if cfg.CRITIC_ENABLED else "(未启用)",
         hitl_block=hitl_block_text,
         critic_block=critic_block_text,
         time_constraint=time_constraint_text,
@@ -90,17 +85,17 @@ def create_supervisor_agent():
 def _prepare_workspace():
     """准备干净的 workspace 目录，并将 skills 复制到 workspace/skills/。"""
     import time as _time
-    if WORKSPACE_DIR.exists():
+    if cfg.WORKSPACE_DIR.exists():
         for _retry in range(3):
             try:
-                shutil.rmtree(WORKSPACE_DIR)
+                shutil.rmtree(cfg.WORKSPACE_DIR)
                 break
             except PermissionError:
                 if _retry < 2:
                     _time.sleep(0.5)
                 else:
                     # 最后一次尝试：只清理子文件，保留根目录
-                    for _child in WORKSPACE_DIR.iterdir():
+                    for _child in cfg.WORKSPACE_DIR.iterdir():
                         try:
                             if _child.is_dir():
                                 shutil.rmtree(_child, ignore_errors=True)
@@ -109,13 +104,13 @@ def _prepare_workspace():
                         except Exception:
                             pass
                     break
-    WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
-    (WORKSPACE_DIR / "notes").mkdir(exist_ok=True)
+    cfg.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    (cfg.WORKSPACE_DIR / "notes").mkdir(exist_ok=True)
 
     # 将 skills 目录复制到 workspace 内，使 FilesystemBackend 可以访问
-    workspace_skills = WORKSPACE_DIR / "skills"
-    if SKILLS_DIR.exists():
-        shutil.copytree(SKILLS_DIR, workspace_skills, dirs_exist_ok=True)
+    workspace_skills = cfg.WORKSPACE_DIR / "skills"
+    if cfg.SKILLS_DIR.exists():
+        shutil.copytree(cfg.SKILLS_DIR, workspace_skills, dirs_exist_ok=True)
 
 
 def _load_skills():
@@ -125,7 +120,7 @@ def _load_skills():
     （相对于 workspace root），FilesystemBackend 可以正确解析。
     """
     skills = []
-    workspace_skills = WORKSPACE_DIR / "skills"
+    workspace_skills = cfg.WORKSPACE_DIR / "skills"
     if workspace_skills.exists():
         for skill_dir in workspace_skills.iterdir():
             if skill_dir.is_dir():
@@ -145,7 +140,7 @@ def _create_backend():
     """
     from deepagents.backends import FilesystemBackend
 
-    return FilesystemBackend(root_dir=str(WORKSPACE_DIR), virtual_mode=True)
+    return FilesystemBackend(root_dir=str(cfg.WORKSPACE_DIR), virtual_mode=True)
 
 
 def _build_agent(*, model, system_prompt, subagents, backend, skills):
@@ -153,7 +148,7 @@ def _build_agent(*, model, system_prompt, subagents, backend, skills):
     from deepagents import create_deep_agent
 
     # HITL 工具只给 Supervisor（不给 researcher）
-    extra_tools = [request_plan_approval] if INTERACTIVE_PLAN_APPROVAL else None
+    extra_tools = [request_plan_approval] if cfg.INTERACTIVE_PLAN_APPROVAL else None
 
     kwargs = dict(
         model=model,

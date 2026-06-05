@@ -7,13 +7,7 @@
 工具日志自动带 researcher 编号（通过 tools.py 中的 ContextVar 懒分配）。
 """
 
-from .config import (
-    USE_OPENALEX,
-    USE_CROSSREF,
-    RAG_ENABLED,
-    SUBAGENT_MAX_CONCURRENCY,
-    CRITIC_ENABLED,
-)
+from . import config as cfg
 from .model_factory import make_chat_model
 from .tools import web_search, web_fetch, search_openalex, search_crossref, search_knowledge_base
 from .prompts import RESEARCHER_PROMPT, CRITIC_PROMPT
@@ -29,15 +23,15 @@ def create_researcher_subagents() -> list[dict]:
     """
     # ── 按配置开关构建工具列表 ──────────────────────────────
     base_tools = [web_search, web_fetch]
-    if USE_OPENALEX:
+    if cfg.USE_OPENALEX:
         base_tools.append(search_openalex)
-    if USE_CROSSREF:
+    if cfg.USE_CROSSREF:
         base_tools.append(search_crossref)
-    if RAG_ENABLED:
+    if cfg.RAG_ENABLED:
         base_tools.append(search_knowledge_base)
 
     specs = []
-    for i in range(1, SUBAGENT_MAX_CONCURRENCY + 1):
+    for i in range(1, cfg.SUBAGENT_MAX_CONCURRENCY + 1):
         name = f"researcher-{i}"
         researcher_model = make_chat_model("researcher")
 
@@ -58,11 +52,11 @@ def create_researcher_subagents() -> list[dict]:
 
 
 def create_critic_subagent() -> dict | None:
-    """创建 critic 审查子智能体（仅 CRITIC_ENABLED 时启用）。
+    """创建 critic 审查子智能体（仅 cfg.CRITIC_ENABLED 时启用）。
 
     Critic 只给读权限（read_file + ls），不进行新搜索。
     """
-    if not CRITIC_ENABLED:
+    if not cfg.CRITIC_ENABLED:
         return None
     return {
         "name": "critic",
@@ -72,6 +66,6 @@ def create_critic_subagent() -> dict | None:
             "不进行新的搜索;只读现有产物。"
         ),
         "system_prompt": CRITIC_PROMPT,
-        "tools": ["read_file", "ls"],
+        "tools": [],  # FilesystemMiddleware 自动注入 read_file / ls
         "model": make_chat_model("critic"),
     }

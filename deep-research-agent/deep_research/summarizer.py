@@ -10,13 +10,7 @@ Python 层只做胶水：读取目录 → 调 API → 写入结果。
 
 from langchain_openai import ChatOpenAI
 
-from .config import (
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    SUMMARIZE_MODEL,
-    REQUEST_TIMEOUT,
-    MAX_RETRIES,
-)
+from . import config as cfg
 
 
 # ── 复用 LLM 调用入口 ──────────────────────────────────
@@ -26,11 +20,11 @@ def call_summarizer_llm(prompt: str, max_tokens: int = 2048) -> str:
     禁 thinking 提速（contextual header 不需要深度推理）。
     """
     model = ChatOpenAI(
-        model=SUMMARIZE_MODEL,
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
-        timeout=REQUEST_TIMEOUT,
-        max_retries=MAX_RETRIES,
+        model=cfg.SUMMARIZE_MODEL,
+        api_key=cfg.DEEPSEEK_API_KEY,
+        base_url=cfg.DEEPSEEK_BASE_URL,
+        timeout=cfg.REQUEST_TIMEOUT,
+        max_retries=cfg.MAX_RETRIES,
         temperature=0.3,
         max_tokens=max_tokens,
         model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}},
@@ -90,11 +84,11 @@ def condense_and_categorize(research_content: str, existing_categories: list[str
 {research_content}"""
 
     model = ChatOpenAI(
-        model=SUMMARIZE_MODEL,
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
-        timeout=REQUEST_TIMEOUT,
-        max_retries=MAX_RETRIES,
+        model=cfg.SUMMARIZE_MODEL,
+        api_key=cfg.DEEPSEEK_API_KEY,
+        base_url=cfg.DEEPSEEK_BASE_URL,
+        timeout=cfg.REQUEST_TIMEOUT,
+        max_retries=cfg.MAX_RETRIES,
         temperature=0.3,  # 低温度，保证分类稳定
     )
 

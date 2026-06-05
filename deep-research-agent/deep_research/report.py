@@ -8,7 +8,7 @@
 import re
 from pathlib import Path
 
-from .config import WORKSPACE_DIR, REPORT_FILENAME, OUTPUT_DOCX_FILENAME
+from . import config as cfg
 
 # python-docx 是可选的——如果没装就跳过 .docx 生成
 try:
@@ -38,8 +38,8 @@ def convert_report(md_path: Path | None = None, docx_path: Path | None = None) -
             "python-docx 未正确安装。请运行: pip uninstall docx -y && pip install python-docx"
         )
 
-    md_path = md_path or WORKSPACE_DIR / REPORT_FILENAME
-    docx_path = docx_path or WORKSPACE_DIR / OUTPUT_DOCX_FILENAME
+    md_path = md_path or cfg.WORKSPACE_DIR / cfg.REPORT_FILENAME
+    docx_path = docx_path or cfg.WORKSPACE_DIR / cfg.OUTPUT_DOCX_FILENAME
 
     if not md_path.exists():
         raise FileNotFoundError(f"报告文件不存在: {md_path}")

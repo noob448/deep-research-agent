@@ -14,13 +14,7 @@ try:
 except ImportError:
     from duckduckgo_search import DDGS  # 旧版包名兼容
 
-from .config import (
-    SEARCH_MAX_RESULTS, FETCH_CHAR_LIMIT, FETCH_TIMEOUT,
-    RERANK_ENABLED, RERANK_TOP_K,
-    USE_OPENALEX, USE_CROSSREF, ARXIV_MIRROR, ACADEMIC_MAILTO,
-    RAG_ENABLED, RAG_TOP_K,
-    RESEARCHER_SEARCH_LIMIT, COUNT_FAILED_SEARCHES,
-)
+from . import config as cfg
 
 # ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
 _search_budget = {}     # {agent_name: count}
@@ -71,7 +65,7 @@ def _check_search_budget(query: str = "") -> str | None:
 
     tag = _get_tag()
     count = _search_budget.get(tag, 0)
-    if count >= RESEARCHER_SEARCH_LIMIT:
+    if count >= cfg.RESEARCHER_SEARCH_LIMIT:
         blocked = _search_budget.get(f"{tag}_blocked", 0) + 1
         _search_budget[f"{tag}_blocked"] = blocked
         if blocked >= 3:
@@ -79,7 +73,7 @@ def _check_search_budget(query: str = "") -> str | None:
                 f"⛔ 你已经连续 {blocked} 次尝试搜索但预算已用尽。"
                 f"**请立即返回最终结果，不要再调用任何搜索工具。**"
             )
-        return BUDGET_EXCEEDED_MSG.format(limit=RESEARCHER_SEARCH_LIMIT)
+        return BUDGET_EXCEEDED_MSG.format(limit=cfg.RESEARCHER_SEARCH_LIMIT)
 
     # 去重检查（按 researcher 隔离）
     if query:
@@ -94,7 +88,7 @@ def _check_search_budget(query: str = "") -> str | None:
 
 def _commit_search(query: str = ""):
     """提交一次搜索计数（在搜索成功后调用）。
-    COUNT_FAILED_SEARCHES=True 时始终计数，False 时仅成功计数。
+    cfg.COUNT_FAILED_SEARCHES=True 时始终计数，False 时仅成功计数。
     """
     tag = _get_tag()
     # 标记去重缓存
@@ -156,11 +150,11 @@ def web_search(query: str) -> str:
     _log(f"[搜索] {query[:100]}")
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=SEARCH_MAX_RESULTS))
+            results = list(ddgs.text(query, max_results=cfg.SEARCH_MAX_RESULTS))
 
         if not results:
             _log(f"[搜索] 无结果")
-            if COUNT_FAILED_SEARCHES:
+            if cfg.COUNT_FAILED_SEARCHES:
                 _commit_search(query)
             return f"搜索 '{query}' 没有返回结果。"
 
@@ -169,7 +163,7 @@ def web_search(query: str) -> str:
         _log(f"[搜索] 找到 {len(results)} 条结果（重排前）")
 
         # ── 重排：多搜回 → 精排 → 少留 ──
-        if RERANK_ENABLED and len(results) > RERANK_TOP_K:
+        if cfg.RERANK_ENABLED and len(results) > cfg.RERANK_TOP_K:
             try:
                 from .rerank import rerank_results
                 results = rerank_results(query, results)
@@ -194,7 +188,7 @@ def web_search(query: str) -> str:
 
     except Exception as e:
         _log(f"[搜索] 失败: {e}")
-        if COUNT_FAILED_SEARCHES:
+        if cfg.COUNT_FAILED_SEARCHES:
             _commit_search(query)
         return f"搜索失败: {type(e).__name__}: {e}"
 
@@ -212,8 +206,8 @@ def web_fetch(url: str) -> str:
     内容会被截断以避免超出上下文窗口。
     """
     # arXiv 镜像加速（国内网络环境）
-    if ARXIV_MIRROR:
-        url = url.replace("arxiv.org", ARXIV_MIRROR)
+    if cfg.ARXIV_MIRROR:
+        url = url.replace("arxiv.org", cfg.ARXIV_MIRROR)
 
     # 缩短 URL 用于显示
     short_url = url[:80] + "..." if len(url) > 80 else url
@@ -232,7 +226,7 @@ def web_fetch(url: str) -> str:
             }
             timeout_config = httpx.Timeout(
                 connect=5.0,
-                read=FETCH_TIMEOUT,
+                read=cfg.FETCH_TIMEOUT,
                 write=5.0,
                 pool=5.0,
             )
@@ -247,8 +241,8 @@ def web_fetch(url: str) -> str:
             text = _html_to_text(html)
             _log(f"[抓取] 成功，{len(text)} 字符")
 
-            if len(text) > FETCH_CHAR_LIMIT:
-                text = text[:FETCH_CHAR_LIMIT] + (
+            if len(text) > cfg.FETCH_CHAR_LIMIT:
+                text = text[:cfg.FETCH_CHAR_LIMIT] + (
                     f"\n\n[... 内容已截断，原文共 {len(text)} 字符 ...]"
                 )
 
@@ -346,8 +340,8 @@ def search_openalex(query: str, max_results: int = 5) -> str:
         "search": query,
         "per-page": str(max_results),
     }
-    if ACADEMIC_MAILTO:
-        params["mailto"] = ACADEMIC_MAILTO
+    if cfg.ACADEMIC_MAILTO:
+        params["mailto"] = cfg.ACADEMIC_MAILTO
 
     qs = urllib.parse.urlencode(params)
     req = urllib.request.Request(
@@ -360,14 +354,14 @@ def search_openalex(query: str, max_results: int = 5) -> str:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         _log(f"[学术搜索] 失败: {e}")
-        if COUNT_FAILED_SEARCHES:
+        if cfg.COUNT_FAILED_SEARCHES:
             _commit_search(query)
         return f"OpenAlex 检索失败（网络或服务问题）：{type(e).__name__}: {e}"
 
     works = data.get("results", [])
     if not works:
         _log(f"[学术搜索] 无结果")
-        if COUNT_FAILED_SEARCHES:
+        if cfg.COUNT_FAILED_SEARCHES:
             _commit_search(query)
         return "OpenAlex 未找到相关论文。请尝试更换更具体的学术关键词。"
 
@@ -428,8 +422,8 @@ def search_crossref(query: str, max_results: int = 5) -> str:
         "query": query,
         "rows": str(max_results),
     }
-    if ACADEMIC_MAILTO:
-        params["mailto"] = ACADEMIC_MAILTO
+    if cfg.ACADEMIC_MAILTO:
+        params["mailto"] = cfg.ACADEMIC_MAILTO
 
     qs = urllib.parse.urlencode(params)
     url = f"https://api.crossref.org/works?{qs}"
@@ -443,14 +437,14 @@ def search_crossref(query: str, max_results: int = 5) -> str:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         _log(f"[元数据] 失败: {e}")
-        if COUNT_FAILED_SEARCHES:
+        if cfg.COUNT_FAILED_SEARCHES:
             _commit_search(query)
         return f"Crossref 检索失败：{type(e).__name__}: {e}"
 
     items = data.get("message", {}).get("items", [])
     if not items:
         _log(f"[元数据] 无结果")
-        if COUNT_FAILED_SEARCHES:
+        if cfg.COUNT_FAILED_SEARCHES:
             _commit_search(query)
         return "Crossref 未找到相关条目。"
 
@@ -503,12 +497,12 @@ def search_knowledge_base(query: str) -> str:
     返回内容标注为「内部历史研究·已浓缩」——这些是过去某时点的结论，可能已过时。
     不计入 8 次网络搜索上限。
     """
-    if not RAG_ENABLED:
+    if not cfg.RAG_ENABLED:
         return "知识库未启用。"
 
     try:
         from .knowledge_base import search_kb
-        results = search_kb(query, top_k=RAG_TOP_K)
+        results = search_kb(query, top_k=cfg.RAG_TOP_K)
     except Exception as e:
         _log(f"[知识库] 检索失败: {e}")
         return f"知识库检索失败（不影响其他搜索）：{e}"
