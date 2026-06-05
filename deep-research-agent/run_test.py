@@ -10,12 +10,7 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from deep_research.agent import create_supervisor_agent
-from deep_research.config import (
-    WORKSPACE_DIR, RECURSION_LIMIT, DEBUG,
-    REASONING_EFFORT_SUPERVISOR, REASONING_EFFORT_RESEARCHER,
-    RESEARCHER_SEARCH_LIMIT, SUBAGENT_MAX_CONCURRENCY,
-    THINKING_ENABLED,
-)
+from deep_research import config as cfg
 # convert_report 延迟导入——避免 docx 环境问题阻塞启动
 
 
@@ -86,11 +81,11 @@ def stage_label(text):
 
 # ── 创建 Agent ──────────────────────────────────
 print(f'{elapsed()} >>> 正在初始化 Deep Research Agent...', flush=True)
-print(f'{elapsed()}     Supervisor: {REASONING_EFFORT_SUPERVISOR}档 | Researcher: {REASONING_EFFORT_RESEARCHER}档', flush=True)
-thinking_status = "ON" if THINKING_ENABLED else "OFF"
-print(f'{elapsed()}     Researcher x{SUBAGENT_MAX_CONCURRENCY} | 搜索上限: {RESEARCHER_SEARCH_LIMIT}次 | '
+thinking_status = "ON" if cfg.THINKING_ENABLED else "OFF"
+print(f'{elapsed()}     Supervisor: {cfg.REASONING_EFFORT_SUPERVISOR}档 | Researcher: {cfg.REASONING_EFFORT_RESEARCHER}档', flush=True)
+print(f'{elapsed()}     Researcher x{cfg.SUBAGENT_MAX_CONCURRENCY} | 搜索上限: {cfg.RESEARCHER_SEARCH_LIMIT}次 | '
       f'Thinking: {thinking_status}', flush=True)
-if DEBUG:
+if cfg.DEBUG:
     print(f'{elapsed()}     [DEBUG] 调试模式开启', flush=True)
 agent = create_supervisor_agent()
 print(f'{elapsed()} >>> Agent 就绪，开始研究', flush=True)
@@ -114,7 +109,7 @@ try:
     for event in agent.stream(
         {'messages': [{'role': 'user', 'content': TOPIC}]},
         stream_mode='values',
-        config={'recursion_limit': RECURSION_LIMIT},
+        config={'recursion_limit': cfg.RECURSION_LIMIT},
     ):
         step += 1
         msgs = event.get('messages', [])
@@ -222,9 +217,9 @@ print(f'{"="*60}', flush=True)
 
 # 检查产出
 print(f'\n  Workspace 内容:', flush=True)
-for f in sorted(WORKSPACE_DIR.rglob('*')):
+for f in sorted(cfg.WORKSPACE_DIR.rglob('*')):
     if f.is_file():
-        rel = str(f.relative_to(WORKSPACE_DIR))
+        rel = str(f.relative_to(cfg.WORKSPACE_DIR))
         try:
             size = len(f.read_text(encoding='utf-8'))
             icon = 'REPORT' if 'report.md' in rel else 'NOTE' if 'notes/' in rel else 'SKILL'
@@ -290,7 +285,7 @@ def _archive_to_history(workspace: 'Path', topic: str):
 
 
 # 尝试生成 docx
-report = WORKSPACE_DIR / 'report.md'
+report = cfg.WORKSPACE_DIR / 'report.md'
 if report.exists():
     try:
         from deep_research.report import convert_report
@@ -301,7 +296,7 @@ if report.exists():
         print(f'         修复方法: pip uninstall docx -y && pip install python-docx', flush=True)
 
     # ── 归档到历史数据库 ──────────────────────────────
-    archived_path = _archive_to_history(WORKSPACE_DIR, TOPIC)
+    archived_path = _archive_to_history(cfg.WORKSPACE_DIR, TOPIC)
 
     # ── 增量索引到向量知识库 ─────────────────────────
     if archived_path:
