@@ -23,15 +23,22 @@ from .config import (
 )
 
 # ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
-_search_budget = {}  # {agent_name: count}
+_search_budget = {}     # {agent_name: count}
+_search_cache = {}      # {query_hash: result}  去重缓存
 BUDGET_EXCEEDED_MSG = (
     "⛔ 搜索预算已用尽（{limit}次）。请**立即停止所有搜索**，不要尝试其他搜索工具。"
     "现在直接整理已有发现，按 [核心发现] + [关键来源] + [充分性自评] 格式返回最终结果，不要拖延。"
 )
+DUPLICATE_MSG = (
+    "⚠️ 你已搜索过相同或高度相似的查询。请换一个不同的角度或更具体的措辞，不要重复。"
+    "（此条不计入搜索预算）"
+)
 
 
-def _check_search_budget() -> str | None:
-    """检查当前 researcher 是否超过搜索预算。返回 None=通过，返回 str=拦截消息。"""
+def _check_search_budget(query: str = "") -> str | None:
+    """检查当前 researcher 是否超过搜索预算。返回 None=通过，返回 str=拦截消息。
+    query 不为空时，先检查去重缓存——相同查询直接返回缓存结果（不计预算）。
+    """
     tag = _get_tag()
     count = _search_budget.get(tag, 0)
     if count >= RESEARCHER_SEARCH_LIMIT:
@@ -43,7 +50,28 @@ def _check_search_budget() -> str | None:
                 f"**请立即返回最终结果，不要再调用任何搜索工具。**"
             )
         return BUDGET_EXCEEDED_MSG.format(limit=RESEARCHER_SEARCH_LIMIT)
+
+    # 去重检查：相同查询 → 缓存命中，不计预算
+    if query:
+        qhash = query.strip().lower()
+        if qhash in _search_cache:
+            _log(f"[去重] 缓存命中，跳过: {query[:80]}")
+            return None  # 返回 None 但 _cached_result 需要让调用者知道
+        _search_cache[qhash] = True
+
     _search_budget[tag] = count + 1
+    return None
+
+
+def _mark_duplicate_or_count(query: str) -> str | None:
+    """如果查询重复，返回缓存提示（不计预算）。否则计数。"""
+    tag = _get_tag()
+    qhash = query.strip().lower()
+    if qhash in _search_cache:
+        _log(f"[去重] 重复查询: {query[:80]}")
+        return DUPLICATE_MSG
+    _search_cache[qhash] = True
+    _search_budget[tag] = _search_budget.get(tag, 0) + 1
     return None
 
 # web_fetch 重试配置
@@ -91,9 +119,13 @@ def web_search(query: str) -> str:
     重要：收到搜索结果后，立即用 write_file 将关键发现保存到 /notes/<topic>.md，
     只保留提炼后的要点，不要将原始搜索输出全部留在上下文中。
     """
-    budget_block = _check_search_budget()
+    budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
+    # 去重检查
+    dup = _mark_duplicate_or_count(query)
+    if dup:
+        return dup
     _log(f"[搜索] {query[:100]}")
     try:
         with DDGS() as ddgs:
@@ -271,9 +303,12 @@ def search_openalex(query: str, max_results: int = 5) -> str:
     import urllib.parse
     import urllib.request
 
-    budget_block = _check_search_budget()
+    budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
+    dup = _mark_duplicate_or_count(query)
+    if dup:
+        return dup
     _log(f"[学术搜索] {query[:100]}")
 
     base = "https://api.openalex.org/works?"
@@ -348,9 +383,12 @@ def search_crossref(query: str, max_results: int = 5) -> str:
     import urllib.parse
     import urllib.request
 
-    budget_block = _check_search_budget()
+    budget_block = _check_search_budget(query)
     if budget_block:
         return budget_block
+    dup = _mark_duplicate_or_count(query)
+    if dup:
+        return dup
     _log(f"[元数据] {query[:100]}")
 
     params = {
