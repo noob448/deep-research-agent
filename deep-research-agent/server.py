@@ -29,11 +29,16 @@ CORS(app)
 _running_tasks = {}
 
 
-def _run_agent(topic: str, task_id: str, output_queue: queue.Queue):
+def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue):
     """在子线程中启动 agent，逐行捕获 stdout 放入队列。"""
+    cmd = [sys.executable, "run_test.py", topic]
+    if effort == "deep":
+        cmd.append("--long-thinking")
+    elif effort == "fast":
+        cmd.append("--short-thinking")
     try:
         proc = subprocess.Popen(
-            [sys.executable, "run_test.py", topic],
+            cmd,
             cwd=str(PROJECT_ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -57,12 +62,13 @@ def start_research():
     """启动研究任务，返回 SSE 流。"""
     data = request.get_json(force=True)
     topic = data.get("topic", "").strip()
+    effort = data.get("effort", "deep")
     if not topic:
         return jsonify({"error": "缺少 topic"}), 400
 
     task_id = f"task_{len(_running_tasks) + 1}"
     output_queue = queue.Queue()
-    thread = threading.Thread(target=_run_agent, args=(topic, task_id, output_queue), daemon=True)
+    thread = threading.Thread(target=_run_agent, args=(topic, task_id, effort, output_queue), daemon=True)
     thread.start()
     _running_tasks[task_id] = {"thread": thread, "queue": output_queue}
 

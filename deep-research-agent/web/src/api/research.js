@@ -5,11 +5,11 @@
  * @param {function} onDone - 完成回调
  * @param {function} onError - 错误回调
  */
-export function streamResearch(topic, { onLog, onDone, onError }) {
+export function streamResearch(topic, effort, { onLog, onDone, onError }) {
   fetch('/api/research', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic })
+    body: JSON.stringify({ topic, effort })
   }).then(async response => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()

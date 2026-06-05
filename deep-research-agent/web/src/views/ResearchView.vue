@@ -2,17 +2,23 @@
   <div class="research-view">
     <!-- 输入区 -->
     <div class="input-section">
-      <input
-        v-model="topic"
-        class="topic-input"
-        placeholder="输入你想研究的问题，例如：人工智能的发展史"
-        @keydown.enter="startResearch"
-        :disabled="running"
-      />
-      <button class="start-btn" @click="startResearch" :disabled="running || !topic.trim()">
-        <span v-if="running" class="spinner"></span>
-        <span>{{ running ? '研究中...' : '开始研究' }}</span>
-      </button>
+      <div class="input-main">
+        <input
+          v-model="topic"
+          class="topic-input"
+          placeholder="输入你想研究的问题，例如：人工智能的发展史"
+          @keydown.enter="startResearch"
+          :disabled="running"
+        />
+        <select v-model="effort" class="effort-select" :disabled="running">
+          <option value="deep">🔬 深度研究 (推荐)</option>
+          <option value="fast">⚡ 快速模式</option>
+        </select>
+        <button class="start-btn" @click="startResearch" :disabled="running || !topic.trim()">
+          <span v-if="running" class="spinner"></span>
+          <span>{{ running ? '研究中...' : '开始研究' }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- 实时日志 -->
@@ -46,6 +52,7 @@ import { ref, nextTick, watch } from 'vue'
 import { streamResearch, getDownloadUrl } from '@/api/research'
 
 const topic = ref('')
+const effort = ref('deep')
 const running = ref(false)
 const done = ref(false)
 const logs = ref([])
@@ -67,7 +74,7 @@ function startResearch() {
   done.value = false
   logs.value = []
 
-  streamResearch(topic.value.trim(), {
+  streamResearch(topic.value.trim(), effort.value, {
     onLog(text) {
       logs.value.push({ time: timeStr(), text })
       nextTick(() => {
@@ -91,7 +98,8 @@ function startResearch() {
 
 <style scoped>
 .research-view { max-width: 800px; margin: 0 auto; }
-.input-section { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+.input-section { margin-bottom: 1.5rem; }
+.input-main { display: flex; gap: 0.75rem; }
 .topic-input {
   flex: 1;
   padding: 0.85rem 1.2rem;
@@ -119,6 +127,18 @@ function startResearch() {
   white-space: nowrap;
 }
 .start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.effort-select {
+  padding: 0.85rem 1rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.effort-select:disabled { opacity: 0.5; cursor: not-allowed; }
 .spinner {
   width: 16px; height: 16px;
   border: 2px solid #fff;
