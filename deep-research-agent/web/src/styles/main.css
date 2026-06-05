@@ -1,3 +1,6 @@
+@import './variables.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 /* ============================================
    配色系统 — 暗黑+青蓝霓虹（赛博朋克风）
    ============================================ */
@@ -65,11 +68,6 @@
 /* ============================================
    全局样式 — 重置 / 字体 / 毛玻璃 / 动画
    ============================================ */
-
-@import './variables.css';
-
-/* ---- Google Fonts ---- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ---- Reset ---- */
 *,

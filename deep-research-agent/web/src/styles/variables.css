@@ -1,0 +1,64 @@
+/* ============================================
+   配色系统 — 暗黑+青蓝霓虹（赛博朋克风）
+   ============================================ */
+
+:root {
+  /* 背景 */
+  --bg-primary:     #0a0a1a;
+  --bg-secondary:   #12122a;
+  --bg-card:        #1a1a3e;
+  --bg-card-hover:  #222255;
+
+  /* 文字 */
+  --text-primary:   #e0e0e0;
+  --text-secondary: #8888aa;
+  --text-muted:     #555577;
+
+  /* 霓虹色 */
+  --neon-cyan:      #00f0ff;
+  --neon-purple:    #7b5cff;
+  --neon-pink:      #ff2d95;
+  --neon-green:     #00ff88;
+
+  /* 发光效果 */
+  --neon-glow:       rgba(0, 240, 255, 0.3);
+  --neon-glow-sm:    rgba(0, 240, 255, 0.15);
+  --neon-glow-lg:    rgba(0, 240, 255, 0.5);
+  --purple-glow:     rgba(123, 92, 255, 0.3);
+
+  /* 毛玻璃 */
+  --glass-bg:        rgba(18, 18, 42, 0.7);
+  --glass-bg-hover:  rgba(18, 18, 42, 0.85);
+  --glass-border:    rgba(0, 240, 255, 0.12);
+  --glass-border-hover: rgba(0, 240, 255, 0.3);
+
+  /* 间距 */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* 字体 */
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* 过渡 */
+  --transition-fast: 0.2s ease;
+  --transition-base: 0.3s ease;
+  --transition-slow: 0.5s ease;
+
+  /* 导航栏高度 */
+  --nav-height: 64px;
+
+  /* 最大内容宽度 */
+  --content-max: 1100px;
+}
