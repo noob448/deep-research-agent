@@ -11,8 +11,9 @@
           :disabled="running"
         />
         <select v-model="effort" class="effort-select" :disabled="running">
-          <option value="deep">🔬 深度研究 (推荐)</option>
-          <option value="fast">⚡ 快速模式</option>
+          <option value="fast">⚡ 快速搜索</option>
+          <option value="deep">🔬 深度检索 (推荐)</option>
+          <option value="max">🧠 深度研究</option>
         </select>
         <button class="start-btn" @click="startResearch" :disabled="running || !topic.trim()">
           <span v-if="running" class="spinner"></span>

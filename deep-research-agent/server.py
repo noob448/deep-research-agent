@@ -34,6 +34,8 @@ def _run_agent(topic: str, task_id: str, effort: str, output_queue: queue.Queue,
     cmd = [sys.executable, "run_test.py", topic]
     if effort == "deep":
         cmd.append("--long-thinking")
+    elif effort == "max":
+        cmd.extend(["--long-thinking", "--enable-critic"])
     elif effort == "fast":
         cmd.append("--short-thinking")
     try:
