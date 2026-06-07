@@ -14,17 +14,21 @@ from .prompts import (
     HITL_INSTRUCTIONS,
     CRITIC_INSTRUCTIONS,
 )
-from .subagents import create_researcher_subagents, create_critic_subagent
+from .subagents import create_researcher_subagents, create_critic_subagent, create_verifier_subagent
 from .tools import request_plan_approval
+from .runtime_state import get_run, record_event
 
 
-def create_supervisor_agent():
+def create_supervisor_agent(resume: bool = False):
     """创建 supervisor 深度研究智能体。
+
+    Args:
+        resume: True 时保留已有 workspace 文件（断点恢复模式）。
 
     返回配置好的 agent 实例，可以直接调用 agent.invoke() 或 agent.stream()。
     """
     # ── 确保工作区目录存在 ──────────────────────────────────
-    _prepare_workspace()
+    _prepare_workspace(resume=resume)
 
     # ── 创建 DeepSeek 模型（按角色设定推理深度） ──────────────
     model = make_chat_model("supervisor")
@@ -40,6 +44,9 @@ def create_supervisor_agent():
     critic = create_critic_subagent()
     if critic:
         subagents.append(critic)
+    verifier = create_verifier_subagent()
+    if verifier:
+        subagents.append(verifier)
 
     # ── 组装 Supervisor prompt（条件注入 HITL / Critic 块）──
     hitl_block_text = HITL_INSTRUCTIONS.format(
@@ -68,6 +75,8 @@ def create_supervisor_agent():
         hitl_block=hitl_block_text,
         critic_block=critic_block_text,
         time_constraint=time_constraint_text,
+        critic_enabled="✅ 已启用" if cfg.CRITIC_ENABLED else "❌ 未启用",
+        hitl_enabled="✅ 已启用" if cfg.INTERACTIVE_PLAN_APPROVAL else "❌ 未启用",
     )
 
     # ── 组装 deep agent ────────────────────────────────────
@@ -82,45 +91,69 @@ def create_supervisor_agent():
     return agent
 
 
-def _prepare_workspace():
-    """准备干净的 workspace 目录，并将 skills 复制到 workspace/skills/。"""
-    import time as _time
-    if cfg.WORKSPACE_DIR.exists():
-        for _retry in range(3):
-            try:
-                shutil.rmtree(cfg.WORKSPACE_DIR)
-                break
-            except PermissionError:
-                if _retry < 2:
-                    _time.sleep(0.5)
-                else:
-                    # 最后一次尝试：只清理子文件，保留根目录
-                    for _child in cfg.WORKSPACE_DIR.iterdir():
-                        try:
-                            if _child.is_dir():
-                                shutil.rmtree(_child, ignore_errors=True)
-                            else:
-                                _child.unlink(missing_ok=True)
-                        except Exception:
-                            pass
-                    break
-    cfg.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
-    (cfg.WORKSPACE_DIR / "notes").mkdir(exist_ok=True)
+def _prepare_workspace(resume: bool = False):
+    """准备 workspace 目录，并将 skills 复制到 workspace/skills/。
 
-    # 将 skills 目录复制到 workspace 内，使 FilesystemBackend 可以访问
-    workspace_skills = cfg.WORKSPACE_DIR / "skills"
+    - 新 run (resume=False): 清空该 run 下的 workspace。
+    - resume (resume=True): 确保目录存在，不删除已有文件。
+    - 同时维护旧 workspace/ 兼容路径（LEGACY_WORKSPACE_COMPAT）。
+    """
+    import time as _time
+
+    run = get_run()
+    workspace = run.workspace_dir
+
+    if not resume:
+        # 新 run：清空该 run 的 workspace
+        if workspace.exists():
+            for _retry in range(3):
+                try:
+                    shutil.rmtree(workspace)
+                    break
+                except PermissionError:
+                    if _retry < 2:
+                        _time.sleep(0.5)
+                    else:
+                        for _child in workspace.iterdir():
+                            try:
+                                if _child.is_dir():
+                                    shutil.rmtree(_child, ignore_errors=True)
+                                else:
+                                    _child.unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                        break
+    # resume 或新 run 都需要确保目录存在
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "notes").mkdir(exist_ok=True)
+
+    # 将 skills 复制到 workspace 内，使 FilesystemBackend 可以访问
+    workspace_skills = workspace / "skills"
     if cfg.SKILLS_DIR.exists():
         shutil.copytree(cfg.SKILLS_DIR, workspace_skills, dirs_exist_ok=True)
+
+    # 旧 workspace/ 兼容：如果 LEGACY_WORKSPACE_COMPAT，同步 skills
+    if cfg.LEGACY_WORKSPACE_COMPAT:
+        cfg.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+        (cfg.WORKSPACE_DIR / "notes").mkdir(exist_ok=True)
+        legacy_skills = cfg.WORKSPACE_DIR / "skills"
+        if cfg.SKILLS_DIR.exists():
+            shutil.copytree(cfg.SKILLS_DIR, legacy_skills, dirs_exist_ok=True)
+
+    record_event("workspace_prepared", {
+        "workspace": str(workspace),
+        "resume": resume,
+    })
 
 
 def _load_skills():
     """加载 skills，返回虚拟路径列表。
 
-    Skills 已被复制到 workspace/skills/，这里返回虚拟路径
+    Skills 已被复制到 run workspace/skills/，这里返回虚拟路径
     （相对于 workspace root），FilesystemBackend 可以正确解析。
     """
     skills = []
-    workspace_skills = cfg.WORKSPACE_DIR / "skills"
+    workspace_skills = get_run().workspace_dir / "skills"
     if workspace_skills.exists():
         for skill_dir in workspace_skills.iterdir():
             if skill_dir.is_dir():
@@ -134,13 +167,13 @@ def _load_skills():
 def _create_backend():
     """创建本地文件系统后端。
 
-    使用本地磁盘后端，文件映射到 ./workspace 目录。
+    使用本地磁盘后端，文件映射到当前 run 的 workspace 目录。
     好处：你可以在 agent 运行时打开 workspace/notes/ 目录，
     观察笔记文件一个一个出现——这是理解上下文卸载的最佳方式。
     """
     from deepagents.backends import FilesystemBackend
 
-    return FilesystemBackend(root_dir=str(cfg.WORKSPACE_DIR), virtual_mode=True)
+    return FilesystemBackend(root_dir=str(get_run().workspace_dir), virtual_mode=True)
 
 
 def _build_agent(*, model, system_prompt, subagents, backend, skills):

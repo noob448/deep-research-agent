@@ -18,6 +18,10 @@ httpx>=0.27.0
 # 检索重排（本地开源 reranker，免费，首次下载模型约 300MB）
 sentence-transformers>=3.0.0
 
+# HTML 正文抽取（网页抓取质量，优雅降级：trafilatura → readability → regex）
+trafilatura>=2.0.0
+readability-lxml>=0.8.0
+
 # 报告生成（python-docx，不用 pandoc）
 python-docx>=1.0.0
 

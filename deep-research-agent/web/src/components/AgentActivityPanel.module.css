@@ -1,0 +1,9 @@
+.section{background:rgba(15,23,42,0.8);border:1px solid #334155;border-radius:8px;overflow:hidden;margin-bottom:1.5rem}
+.header{padding:0.6rem 1rem;background:#1e293b;font-size:0.85rem;color:#94a3b8}
+.empty{padding:2rem;text-align:center;color:#64748b;font-size:0.85rem}
+.container{max-height:500px;overflow-y:auto;padding:0.5rem 0}
+.group{margin-bottom:0.5rem}
+.an{padding:0.4rem 1rem;font-size:0.85rem;font-weight:600;color:#00d4ff;background:rgba(0,212,255,0.05)}
+.cn{font-weight:400;font-size:0.75rem;color:#64748b;margin-left:0.5rem}
+.call{padding:0.25rem 1.5rem;display:flex;gap:0.5rem;font-size:0.78rem;line-height:1.5}
+.ct{color:#64748b;white-space:nowrap}.ctl{color:#7b2fff;white-space:nowrap;font-weight:500}.cq{color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

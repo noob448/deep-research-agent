@@ -11,6 +11,11 @@ if sys.platform == 'win32':
 
 from deep_research.agent import create_supervisor_agent
 from deep_research import config as cfg
+from deep_research.runtime_state import (
+    init_run, get_run, record_event,
+    load_progress, save_progress, update_progress,
+    list_runs, atomic_write_json,
+)
 # convert_report 延迟导入——避免 docx 环境问题阻塞启动
 
 
@@ -35,6 +40,16 @@ def parse_cli_args():
     parser.add_argument("--no-rerank-kb", action="store_true", help="关闭 KB 重排")
     parser.add_argument("--no-contextual-rag", action="store_true", help="关闭上下文检索")
     parser.add_argument("--debug", action="store_true", help="打印 thinking 内容等详情")
+    parser.add_argument("--run-id", default=None, help="指定 run 目录名（默认时间戳自动生成）")
+    parser.add_argument("--resume", nargs="?", const="latest", default=None,
+                        help="恢复已有 run（默认恢复 latest，也可指定 run_id）")
+    parser.add_argument("--list-runs", action="store_true", help="列出所有已完成/运行中的 run")
+    parser.add_argument("--verify-report", action="store_true", help="完成研究后执行事实验证")
+    parser.add_argument("--skip-verification", action="store_true", help="跳过事实验证（默认 long-thinking 会跑验证）")
+    parser.add_argument("--enable-verifier", action="store_true", help="启用 Verifier 子 Agent（max 模式默认开启）")
+    parser.add_argument("--disable-verifier", action="store_true", help="关闭 Verifier")
+    parser.add_argument("--react-loop", action="store_true", default=True, help="启用 Researcher ReAct-style 循环（默认）")
+    parser.add_argument("--no-react-loop", action="store_true", help="关闭 ReAct 循环，回退旧 Researcher 模式")
     return parser.parse_args()
 
 
@@ -54,6 +69,9 @@ def apply_cli_to_config(args):
         cfg.COUNT_FAILED_SEARCHES = True      # fast: 失败也计，追求速度
     if args.reasoning_effort: cfg.REASONING_EFFORT_SUPERVISOR = args.reasoning_effort
     if args.researcher_effort: cfg.REASONING_EFFORT_RESEARCHER = args.researcher_effort
+    if args.enable_verifier: cfg.VERIFIER_ENABLED = True
+    if args.disable_verifier: cfg.VERIFIER_ENABLED = False
+    if args.no_react_loop: cfg.REACT_RESEARCH_LOOP_ENABLED = False
     if args.enable_critic: cfg.CRITIC_ENABLED = True
     if args.critic_rounds is not None: cfg.CRITIC_MAX_ROUNDS = args.critic_rounds
     if args.interactive_plan: cfg.INTERACTIVE_PLAN_APPROVAL = True
@@ -70,12 +88,49 @@ def apply_cli_to_config(args):
 _cli_args = parse_cli_args()
 apply_cli_to_config(_cli_args)
 
-TOPIC = _cli_args.topic or input("请输入研究课题: ").strip()
+# ── --list-runs：列出所有 run 后退出 ──────────────────
+if _cli_args.list_runs:
+    runs = list_runs()
+    if not runs:
+        print("（暂无已记录的 run）")
+    else:
+        print(f"\n{'run_id':<22} {'状态':<12} {'阶段':<18} {'课题'}")
+        print("-" * 90)
+        for r in runs:
+            status_icon = {"completed": "✅", "running": "🔄", "failed": "❌", "aborted": "⏹"}.get(r["status"], "❓")
+            print(f'{r["run_id"]:<22} {status_icon} {r["status"]:<10} {r["phase"]:<18} {r["topic"][:50]}')
+            if r["has_report"]:
+                print(f'  {"":>22}   📄 report.md 已生成')
+        print()
+    sys.exit(0)
+
 TS_START = time.time()
 
 def elapsed():
     m, s = divmod(int(time.time() - TS_START), 60)
     return f"[{m:02d}:{s:02d}]"
+
+# ── 初始化 run 上下文 ─────────────────────────────────
+_resume_mode = _cli_args.resume is not None
+
+if _resume_mode:
+    # 恢复模式：从已有 run 读取 topic
+    run_id = _cli_args.resume if _cli_args.resume != "latest" else None
+    init_run(topic=None, run_id=run_id, resume=True)
+    progress = load_progress()
+    TOPIC = progress.get("topic", "")
+    if not TOPIC:
+        print("错误：无法从 research_progress.json 读取课题。该 run 可能已损坏。")
+        sys.exit(1)
+    print(f'{elapsed()} >>> 恢复 run: {get_run().run_id}')
+    print(f'{elapsed()}     课题: {TOPIC}')
+else:
+    # 新 run
+    TOPIC = _cli_args.topic or input("请输入研究课题: ").strip()
+    init_run(topic=TOPIC, run_id=_cli_args.run_id, resume=False)
+    print(f'{elapsed()} >>> 新建 run: {get_run().run_id}')
+
+record_event("phase_changed", {"phase": "initialized", "topic": TOPIC})
 
 def stage_label(text):
     """打印阶段标题"""
@@ -94,9 +149,10 @@ print(f'{elapsed()}     Researcher x{cfg.SUBAGENT_MAX_CONCURRENCY} | 搜索上�
       f'Thinking: {thinking_status}', flush=True)
 if cfg.DEBUG:
     print(f'{elapsed()}     [DEBUG] 调试模式开启', flush=True)
-agent = create_supervisor_agent()
+agent = create_supervisor_agent(resume=_resume_mode)
 print(f'{elapsed()} >>> Agent 就绪，开始研究', flush=True)
 print(f'{elapsed()}     课题: {TOPIC}', flush=True)
+record_event("phase_changed", {"phase": "planning"})
 
 # ── 运行研究循环 ───────────────────────────────
 step = 0
@@ -111,6 +167,7 @@ def once_stage(name, text):
     if name not in stage_shown:
         stage_shown.add(name)
         stage_label(text)
+        record_event("phase_changed", {"phase": name, "label": text})
 
 try:
     for event in agent.stream(
@@ -132,6 +189,17 @@ try:
                 for tc in msg.tool_calls:
                     name = tc.get('name', '?')
                     args = tc.get('args', {})
+
+                    # 记录工具调用事件
+                    tool_payload = {"tool": name}
+                    if name == 'task':
+                        tool_payload["description"] = str(args.get('description', ''))[:200]
+                        tool_payload["subagent_type"] = args.get('subagent_type', '?')
+                    elif name in ('web_search', 'search_openalex', 'search_crossref'):
+                        tool_payload["query"] = str(args.get('query', ''))[:200]
+                    elif name in ('write_file', 'read_file'):
+                        tool_payload["path"] = args.get('file_path', args.get('path', ''))
+                    record_event("tool_call", tool_payload)
 
                     if name == 'write_todos':
                         todos = args.get('todos', [])
@@ -212,8 +280,13 @@ try:
 
 except KeyboardInterrupt:
     print(f'\n{elapsed()} >>> 用户中断', flush=True)
+    record_event("run_failed", {"reason": "user_interrupt"})
+    update_progress(phase="aborted", status="aborted")
 except Exception as e:
     print(f'\n{elapsed()} >>> 错误: {type(e).__name__}: {e}', flush=True)
+    record_event("run_failed", {"reason": str(e)[:500], "error_type": type(e).__name__})
+    update_progress(phase="failed", status="failed",
+                    errors=load_progress().get("errors", []) + [{"type": type(e).__name__, "message": str(e)[:500]}])
 
 # ── 最终汇总 ───────────────────────────────────
 total_time = time.time() - TS_START
@@ -222,11 +295,12 @@ print(f'\n{"="*60}')
 print(f'  运行结束 | 总步数: {step} | 耗时: {m}分{s}秒')
 print(f'{"="*60}', flush=True)
 
-# 检查产出
+# 检查产出（使用 run workspace）
+run_ws = get_run().workspace_dir
 print(f'\n  Workspace 内容:', flush=True)
-for f in sorted(cfg.WORKSPACE_DIR.rglob('*')):
+for f in sorted(run_ws.rglob('*')):
     if f.is_file():
-        rel = str(f.relative_to(cfg.WORKSPACE_DIR))
+        rel = str(f.relative_to(run_ws))
         try:
             size = len(f.read_text(encoding='utf-8'))
             icon = 'REPORT' if 'report.md' in rel else 'NOTE' if 'notes/' in rel else 'SKILL'
@@ -255,8 +329,8 @@ def _archive_to_history(workspace: 'Path', topic: str):
     def _safe(s):
         return s.replace('/','-').replace('\\','-').replace(':','-').replace('?','').replace('"','')[:50].strip()
 
-    # ── 扫描已有分类 ────────────────────────────────────
-    history_base = workspace.parent / 'history-database'
+    # ── 扫描已有分类（始终使用项目根 history-database）──
+    history_base = cfg.PROJECT_ROOT / 'history-database'
     history_base.mkdir(parents=True, exist_ok=True)
     existing_categories = sorted([
         d.name for d in history_base.iterdir()
@@ -291,19 +365,49 @@ def _archive_to_history(workspace: 'Path', topic: str):
     return filepath  # 返回路径供后续增量索引
 
 
-# 尝试生成 docx
-report = cfg.WORKSPACE_DIR / 'report.md'
+def _copy_workspace_to_legacy(src_workspace: 'Path', dst_workspace: 'Path') -> None:
+    """将 run workspace 的产出复制到项目根 workspace/（兼容旧下载路径）。"""
+    import shutil as _shutil
+    try:
+        # 确保目标存在
+        dst_workspace.mkdir(parents=True, exist_ok=True)
+        (dst_workspace / "notes").mkdir(exist_ok=True)
+        # 复制关键产出文件
+        for name in ["report.md", "report.docx", "research_summary.txt"]:
+            src_file = src_workspace / name
+            if src_file.exists():
+                _shutil.copy2(src_file, dst_workspace / name)
+        # 复制 notes
+        src_notes = src_workspace / "notes"
+        dst_notes = dst_workspace / "notes"
+        if src_notes.exists():
+            for note in src_notes.glob("*.md"):
+                _shutil.copy2(note, dst_notes / note.name)
+        # 复制 skills（server.py /download 可能依赖）
+        src_skills = src_workspace / "skills"
+        dst_skills = dst_workspace / "skills"
+        if src_skills.exists():
+            _shutil.copytree(src_skills, dst_skills, dirs_exist_ok=True)
+        print(f'  [OK] 已同步到旧 workspace/: {dst_workspace}', flush=True)
+    except Exception as e:
+        print(f'  [WARN] 同步旧 workspace 失败（不影响主流程）: {e}', flush=True)
+
+
+# 尝试生成 docx（使用 run workspace）
+report = run_ws / 'report.md'
+_run_completed_ok = False
 if report.exists():
     try:
         from deep_research.report import convert_report
-        docx = convert_report()
+        docx = convert_report(md_path=report, docx_path=run_ws / 'report.docx')
         print(f'\n  [OK] 报告已生成: {docx}', flush=True)
+        update_progress(report_status={**load_progress().get("report_status", {}), "docx_done": True})
     except Exception as e:
         print(f'\n  [WARN] docx 生成失败: {e}', flush=True)
         print(f'         修复方法: pip uninstall docx -y && pip install python-docx', flush=True)
 
     # ── 归档到历史数据库 ──────────────────────────────
-    archived_path = _archive_to_history(cfg.WORKSPACE_DIR, TOPIC)
+    archived_path = _archive_to_history(run_ws, TOPIC)
 
     # ── 增量索引到向量知识库 ─────────────────────────
     if archived_path:
@@ -313,5 +417,37 @@ if report.exists():
             print(f'  [知识库] 当前向量库文档总数: {get_document_count()}', flush=True)
         except Exception as e:
             print(f'  [知识库] 索引失败（不影响主流程）: {e}', flush=True)
+
+    _run_completed_ok = True
 else:
     print(f'\n  [WARN] 未生成 report.md（研究未完成）', flush=True)
+
+# ── 事实验证（P2：--verify-report 或 long-thinking 模式默认执行）──
+_should_verify = _cli_args.verify_report or (
+    not _cli_args.skip_verification
+    and not _cli_args.short_thinking
+    and (cfg.CRITIC_ENABLED or _cli_args.long_thinking)
+)
+if _should_verify and report.exists():
+    try:
+        from deep_research.claim_verifier import verify_report
+        print(f'\n  [验证] 正在抽取并验证关键论断...', flush=True)
+        report_event("phase_changed", {"phase": "verification"})
+        update_progress(phase="verification")
+        vresult = verify_report(max_claims=10)
+        print(f'  [验证] 完成: {vresult["total_claims"]} claims → '
+              f'✅{vresult["verified"]} ⚠️{vresult["partial"]} ❌{vresult["unsupported"]} 🚫{vresult["contradicted"]}', flush=True)
+        update_progress(report_status={**load_progress().get("report_status", {}), "verified": True})
+    except Exception as e:
+        print(f'  [WARN] 验证失败（不影响主流程）: {e}', flush=True)
+
+# ── 复制 latest workspace 到项目根（兼容旧下载路径）──
+if cfg.COPY_LATEST_TO_WORKSPACE and _run_completed_ok:
+    _copy_workspace_to_legacy(run_ws, cfg.WORKSPACE_DIR)
+
+# ── 记录完成事件 ─────────────────────────────────────
+if _run_completed_ok:
+    record_event("run_completed", {"total_steps": step, "total_time_s": int(time.time() - TS_START)})
+    update_progress(phase="completed", status="completed")
+    record_event("archive_completed", {"archived": bool(archived_path)})
+    record_event("index_completed", {})

@@ -36,11 +36,22 @@ class _RateLimitedChatOpenAI(ChatOpenAI):
             return await super().ainvoke(*args, **kwargs)
 
 
+def _model_for_role(role: str) -> str:
+    """按角色返回应使用的模型名。"""
+    return {
+        "supervisor": cfg.SUPERVISOR_MODEL,
+        "researcher": cfg.RESEARCHER_MODEL,
+        "critic": cfg.CRITIC_MODEL,
+        "verifier": cfg.VERIFIER_MODEL,
+        "summarizer": cfg.SUMMARIZE_MODEL,
+    }.get(role, cfg.DEFAULT_AGENT_MODEL)
+
+
 def make_chat_model(role: str = "default", temperature: float = None, rate_limited: bool = True) -> BaseChatModel:
     """创建指定角色的 ChatOpenAI 模型实例。
 
     Args:
-        role: "supervisor" | "researcher" | "critic" | "default"
+        role: "supervisor" | "researcher" | "critic" | "verifier" | "summarizer" | "default"
         temperature: 覆盖默认温度（thinking 模式下会被静默忽略）
         rate_limited: 是否受全局信号量限制（默认 True，只有内部非 agent 调用才关）
     """
@@ -48,14 +59,16 @@ def make_chat_model(role: str = "default", temperature: float = None, rate_limit
         "supervisor": cfg.REASONING_EFFORT_SUPERVISOR,
         "researcher": cfg.REASONING_EFFORT_RESEARCHER,
         "critic": cfg.REASONING_EFFORT_CRITIC,
+        "verifier": cfg.REASONING_EFFORT_VERIFIER,
     }
     effort = effort_map.get(role, "high")
     extra_body = {"thinking": {"type": "enabled"}} if cfg.THINKING_ENABLED else None
 
     cls = _RateLimitedChatOpenAI if rate_limited else ChatOpenAI
+    model = _model_for_role(role)
 
     return cls(
-        model=cfg.AGENT_MODEL,
+        model=model,
         api_key=cfg.DEEPSEEK_API_KEY,
         base_url=cfg.DEEPSEEK_BASE_URL,
         timeout=cfg.REQUEST_TIMEOUT,

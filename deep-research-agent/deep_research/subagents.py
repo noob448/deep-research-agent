@@ -9,8 +9,8 @@
 
 from . import config as cfg
 from .model_factory import make_chat_model
-from .tools import web_search, web_fetch, search_openalex, search_crossref, search_knowledge_base
-from .prompts import RESEARCHER_PROMPT, CRITIC_PROMPT
+from .tools import web_search, web_fetch, search_openalex, search_crossref, search_knowledge_base, search_cn
+from .prompts import RESEARCHER_PROMPT, CRITIC_PROMPT, VERIFIER_PROMPT
 
 
 def create_researcher_subagents() -> list[dict]:
@@ -27,6 +27,8 @@ def create_researcher_subagents() -> list[dict]:
         base_tools.append(search_openalex)
     if cfg.USE_CROSSREF:
         base_tools.append(search_crossref)
+    if cfg.USE_CN_SEARCH:
+        base_tools.append(search_cn)
     if cfg.RAG_ENABLED:
         base_tools.append(search_knowledge_base)
 
@@ -68,4 +70,25 @@ def create_critic_subagent() -> dict | None:
         "system_prompt": CRITIC_PROMPT,
         "tools": [],  # FilesystemMiddleware 自动注入 read_file / ls
         "model": make_chat_model("critic"),
+    }
+
+
+def create_verifier_subagent() -> dict | None:
+    """创建 verifier 事实核验子智能体（仅 cfg.VERIFIER_ENABLED 时启用）。
+
+    Verifier 只给读权限（read_file + ls），不进行新搜索。
+    只相信 sources/<source_id>.txt 和 claims 文件。
+    """
+    if not cfg.VERIFIER_ENABLED:
+        return None
+    return {
+        "name": "verifier",
+        "description": (
+            "对报告中的关键论断进行事实核验。读取 claims 和 /sources/ 下的原始文件，"
+            "判断每个 claim 是否被 source 支持。只输出证据核验结果，不修改报告。"
+            "不进行新的搜索;只读现有来源文件。"
+        ),
+        "system_prompt": VERIFIER_PROMPT,
+        "tools": [],  # FilesystemMiddleware 自动注入 read_file / ls
+        "model": make_chat_model("verifier"),
     }

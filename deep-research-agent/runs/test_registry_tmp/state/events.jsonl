@@ -1,0 +1,2 @@
+{"ts": "2026-06-06T12:16:43.365248+00:00", "run_id": "test_registry_tmp", "event_type": "run_started", "payload": {"topic": "test registry", "run_id": "test_registry_tmp", "resumed": false}}
+{"ts": "2026-06-06T12:16:43.368244+00:00", "run_id": "test_registry_tmp", "event_type": "source_registered", "payload": {"source_id": "src_141fbc", "url": "https://example.com/article", "source_type": "web", "content_chars": 42}}
