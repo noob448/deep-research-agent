@@ -139,7 +139,8 @@ REACT_REQUIRE_OBSERVATION_SUMMARY = True # 强制要求 [OBSERVATION] 摘要
 # ─── Source Ledger / Claim Ledger ───────────────────────
 SOURCE_LEDGER_ENABLED = True            # 来源注册表（source_id 追踪）
 CLAIM_LEDGER_ENABLED = True             # 论断注册表（claim 追踪）
-VERIFIER_AS_SUBAGENT = True             # Verifier 作为 LangGraph subagent (False=Python编排层调用)
+VERIFIER_ENABLED = False                # Verifier 子 Agent 开关（--enable-verifier 开启）
+VERIFIER_AS_SUBAGENT = True             # True=LangGraph subagent, False=Python编排层调用
 
 # ─── Critic 反思回路 ────────────────────────────────────
 CRITIC_ENABLED = False                  # --enable-critic 开启
