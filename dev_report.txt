@@ -1,0 +1,205 @@
+2024年与2025年大语言模型推理能力进展对比
+摘要
+2024年至2025年，大语言模型（LLM）的推理能力经历了从"规模扩展"到"推理时思考"的根本性范式转变。2024年9月OpenAI o1系列的发布标志着test-time compute scaling范式的诞生，模型开始在推理时"花更多时间思考"而非单纯依赖更大的预训练参数规模 12。进入2025年，这一范式全面成熟：DeepSeek-R1通过纯强化学习（GRPO）在开源生态中实现了与闭源模型相当的推理性能 34，OpenAI o3/o4-mini将推理能力推至AIME 2025近乎满分（99.5%）5，Claude Opus 4.5首次在SWE-bench Verified上突破80% 6。与此同时，推理成本大幅下降（DeepSeek-R1 API价格仅为o1的1/10–1/20），基准测试体系也从静态转向动态以防止数据污染 7。本报告系统梳理两年间模型、技术、基准三个维度的进展，并提供量化对比。
+---
+研究背景
+推理能力——包括数学推导、逻辑分析、代码生成、科学推理等——一直被视为大语言模型通向通用人工智能的关键瓶颈。2023年及以前，提升推理能力的主要路径是扩大模型参数和训练数据规模（training-time scaling）。然而，2024年出现了一个重要转折：研究者发现，在推理阶段投入更多计算资源（test-time compute scaling），让模型生成更长的思维链"思考"后再作答，可以比单纯扩大模型参数更有效地提升推理能力 8。
+这一发现迅速重塑了产业格局。2024年下半年到2025年全年，推理模型的迭代速度远超此前任何时期：新模型几乎以月为单位刷新基准测试记录，推理成本以数量级下降，开源与闭源的差距快速缩小。与此同时，传统推理基准（MMLU、GSM8K等）快速饱和，催生了大量更难、更专业化、更具防污染能力的新型基准。本报告旨在系统对比2024年和2025年LLM推理能力的进展，涵盖关键模型、技术路线、基准表现的量化分析，以及背后的范式转变逻辑。
+研究范围：本报告聚焦2024年1月至2025年中期（约2025年7月）公开发布的主要推理模型、技术和基准。部分2025年末发布的模型（如Claude Opus 4.5）数据来自早期评测，可能存在更新。
+---
+核心发现
+一、2024年：推理范式的转折之年
+1.1 OpenAI o1系列——推理模型的诞生
+2024年9月12日，OpenAI发布了o1-preview和o1-mini，这是业界首次在production级别展示test-time compute scaling的推理模型 12。o1-preview在回答用户问题前，会在内部生成一个"思维链草稿"（scratchpad），通过延长推理时间来提升复杂任务的表现 8。
+o1-preview的关键基准表现 29：
+AIME 2024数学竞赛：约74%（GPT-4o仅约13%）
+IMO资格赛：83%
+编程竞赛：第89百分位
+MMLU：90.8%（pass@1），MATH：85.5%（0-shot CoT），HumanEval：92.4%
+o1系列的发布被广泛认为是LLM推理能力的分水岭——它证明了模型不只是"知道得更多"，而是可以"想得更深" 8。
+1.2 其他2024年重要模型
+Claude 3.5 Sonnet（2024年6月）：Anthropic发布，在GPQA（研究生级推理）和HumanEval上树立了当时的新行业基准 10。MATH（0-shot CoT）得分71.1，在非推理专精模型中表现最佳 9。
+DeepSeek-V3（2024年12月）：671B参数的MoE架构开源模型，在数学和编码任务上达到开源SOTA，完整预训练仅需2.788M H800 GPU小时 1112。
+Gemini 1.5 Pro（2024年）：Google发布，支持1M token上下文窗口，在超长上下文推理上表现突出 13。
+Llama 3.1 405B（2024年7月）：Meta发布，在数学和语言推理任务上与GPT-4o、Claude 3.5 Sonnet竞争 14。
+1.3 2024年的推理技术创新
+2024年推理技术以Chain-of-Thought（CoT）及其变体为核心 15：Self-Consistency（多采样投票，在数学/推理基准上提升10-15个百分点）、Tree-of-Thoughts（ToT，分支探索多路径）、Graph-of-Thoughts（GoT，建模为图结构）。Search-Based CoT Optimization和Process Reward Models（PRMs）也被广泛探索 816。综述论文"A Survey of Frontiers in LLM Reasoning"系统性梳理了这一阶段的技术演进 17。
+二、2025年：推理模型的爆发与成熟
+2.1 旗舰推理模型全面涌现
+2025年是推理模型真正"井喷"的一年，几乎每月都有重要发布：
+OpenAI o3 / o4-mini（2025年4月）是OpenAI推理模型的重大升级 518：
+o4-mini在AIME 2025上不带工具得分92.7%，带Python解释器达99.5%（接近天花板）
+o3在GPQA Diamond上得分83.3%，SWE-bench Verified 69.1%
+o3在Humanity's Last Exam（HLE）上无工具20.32%，带工具24.9%
+o3比o1在困难任务上减少约20%的重大错误 18
+DeepSeek-R1（2025年1月）是2025年最具影响力的开源推理模型 3419：
+核心创新：GRPO（Group Relative Policy Optimization）——无需传统critic模型的RL算法
+训练流程：SFT冷启动 → GRPO RL → 推理数据生成 → 蒸馏至小模型（1.5B–70B）
+R1-Zero变体跳过SFT，纯RL训练中自然涌现"aha moment"（自我修正行为）
+发表于Nature（2025），API价格仅为$0.70/M输入、$2.50/M输出 4
+以低于o1 70%的成本匹配其推理性能 20
+Claude Opus 4.5（2025年11月）：在SWE-bench Verified上达到80.9%，成为首个突破80%的模型，被广泛视为"现存最好的编程模型" 621。
+Gemini 2.5 Pro（2025年）：在GPQA Diamond上以84%领先科学推理 22，AIME 2025首次尝试86.7% 23，在LMArena上领先竞争对手约40分 22。
+Grok-3（2025年2月，xAI）：配备"Think mode"（6秒至6分钟深度推理），AIME 2025得分93.3%，GPQA Diamond 84.6% 2425。
+Qwen3（2025年4月，阿里云）：32B参数，Apache 2.0许可，在同参数级别实现效率领先 26。后续Qwen3.6 Plus在GPQA Diamond上达90.4% 27。
+Llama 4（2025年4月，Meta）：发布后陷入基准操纵争议——Yann LeCun离职后承认基准测试结果被人为调优，实际长上下文等任务表现不佳 28。
+2.2 2025年的推理技术创新
+2025年推理技术的核心演进体现在以下方向：
+Test-time compute scaling成熟化：确立了沿sequential（自修正、预算控制解码）、parallel（自一致性聚合）、hybrid（树搜索）三维度分配推理计算的方法论 2930。ATLAS（Agentic Test-time Learning-to-Allocate Scaling）代表了该方向的最新进展 31。
+RLVR + GRPO成为推理训练核心范式：RLVR（Reinforcement Learning with Verifiable Rewards）使用客观可验证的奖励信号（数学答案正确性、代码执行结果）替代人类偏好 3233。GRPO通过组内相对比较消除对独立critic模型的需求，大幅降低RL训练计算成本 34。清华大学维护的Awesome-RL-for-LRMs仓库系统整理了该领域进展 35。
+CoT从提示工程演化为训练内生能力：2025年CoT不再依赖外部提示，而是通过RL训练内化为模型原生行为。DeepSeek-R1-Zero在纯RL训练中自发涌现长链推理和"aha moment"自我修正 36。Coconut（Chain of Continuous Thought）代表了向更高效推理范式演进的前沿——在连续潜在空间中推理而非显式token 37。
+推理时搜索与蒸馏互补：大推理模型生成高质量推理数据，用于蒸馏训练更小的密集模型，使推理能力向下渗透到1.5B–70B规模 3。
+三、基准测试体系的演进：从饱和到重生
+3.1 传统基准快速饱和
+2024年，多个传统推理基准已实质饱和 3839：
+MMLU：前沿模型88–90%，超过人类专家约89.8%，统计上无法区分
+GSM8K（小学数学应用题）：几乎被满分"解决"
+MATH：被精简为MATH-500子集，仍不足以区分顶级模型
+Stanford 2025 AI Index正式确认MMLU、GSM8K等传统基准已饱和，现仅作为"sanity check"使用 38。
+3.2 新一代高难度基准的涌现
+为应对饱和问题，2024–2025年间涌现了大量新基准 40：
+| 基准 | 发布者 | 难度定位 | 关键特征 |
+|------|--------|----------|----------|
+| MMLU-Pro | — | 本科+ | MMLU升级版，DeepSeek-R1 84.0%（vs MMLU 90.8%），有效拉开差距 41 |
+| GPQA Diamond | — | 博士级科学 | 研究生/博士级科学推理，顶级模型仍在71–84%区间 42 |
+| AIME 2024/2025 | — | 竞赛数学 | 美国数学邀请赛题，2025版在工具辅助后接近天花板 543 |
+| FrontierMath | Epoch AI | 研究级数学 | 350道原创题，o3仅25.2%，远未饱和 4445 |
+| ARC-AGI-2 | ARC Prize | 抽象推理 | 2025年发布，GPT-5 Pro 70.2%，Gemini 3 Deep Think 84.6% 4647 |
+| Humanity's Last Exam | CAIS/Scale AI | 专家级综合 | 2500题，近1000位专家贡献，发表于Nature，o3无工具仅20.32% 4849 |
+| SWE-bench Verified | — | 软件工程 | 500题真实GitHub issues修复，从~30%快速提升至80%+ 5051 |
+| LiveCodeBench | — | 动态编程 | 2024年推出，从LeetCode/AtCoder爬取新题，开创动态评测 52 |
+3.3 方法论转变：从静态到动态
+2024–2025年见证了基准评测从静态到动态的根本性转变 5354。数据污染（训练数据中包含基准题目导致分数虚高）是核心驱动力。学术论文"Recent Advances in LLM Benchmarks against Data Contamination: From Static to Dynamic Evaluation"（arXiv 2502.17521）系统分析了这一范式转变 53。
+新基准的设计理念呈现三个趋势 404448：
+难度大幅提升：从本科水平（MMLU）→ 研究生（GPQA）→ 专家级（FrontierMath/HLE）
+能力维度细分：从综合知识到专业推理（数学/编程/抽象/科学各自独立评测）
+防污染设计：动态更新题目或使用未公开题目池
+四、2024 vs 2025 量化对比
+4.1 核心基准跨年对比
+下表汇总了2024年和2025年代表性模型在关键推理基准上的表现。需注意不同年份的基准版本可能不同（如AIME 2024 vs 2025），且分数来自多源交叉验证，部分为模型厂商自报数据 2591944：
+| 基准 | 2024年最佳 | 分数 | 2025年最佳 | 分数 | 提升幅度 |
+|------|-----------|------|-----------|------|----------|
+| MMLU | Claude 3.5 Sonnet / o1-preview | ~90.8% | (已饱和，不再作为核心指标) | — | — |
+| MATH (0-shot CoT) | o1-preview | 85.5% | 饱和 | — | — |
+| AIME（竞赛数学） | o1-preview (2024版) | ~74% | o4-mini (2025版，+Python) | 99.5% | +25.5pp |
+| GPQA Diamond | (2024年未广泛评测) | — | Gemini 2.5 Pro | 84.0% | — |
+| SWE-bench Verified | (2024年初约30%) | ~30% | Claude Opus 4.5 | 80.9% | +50.9pp |
+| FrontierMath | — | — | o3 | 25.2% | (远未饱和) |
+| HLE（无工具） | — | — | o3 | 20.32% | (远未饱和) |
+| ARC-AGI-1 | (未突破) | — | o3（高计算模式） | 匹配人类 | 质变 |
+4.2 推理成本对比
+推理成本在两年间经历了数量级下降 720：
+| 模型 | 发布时间 | 输入价格（$/M tokens） | 输出价格（$/M tokens） |
+|------|----------|------------------------|------------------------|
+| o1-preview | 2024年9月 | $15 | $60 |
+| o1-mini | 2024年9月 | $3 | $12 |
+| DeepSeek-R1 | 2025年1月 | $0.70 | $2.50 |
+| Gemini 2.5 Flash | 2025年 | $0.30 | — |
+开源模型（DeepSeek-R1、Qwen3）更允许本地部署，实现零边际API成本，进一步推动了推理能力的民主化。
+---
+分析与讨论
+范式转变的深层逻辑
+2024–2025年LLM推理能力的飞跃，本质上是从"System 1"思维（快速、本能、基于模式匹配的自回归生成）向"System 2"思维（缓慢、分析性、深思熟虑的多步推理）的范式转变 5556。这一框架借鉴了Kahneman认知心理学的双过程理论。Test-time compute scaling是实现System 2行为的关键机制——模型不再"一口回答"，而是经历"思考-检查-修正"的元认知循环。
+DeepSeek-R1-Zero训练过程中观察到的"aha moment"——模型在无明确指导下自发学会自我纠正——是System 2思维涌现的关键证据 36。这表明通过RL训练，模型能够内化元认知能力，而非仅仅模仿推理格式。
+技术路线收敛与分歧
+2025年，推理模型的技术路线呈现明显的收敛趋势：
+RLVR是共同基础：OpenAI o系列和DeepSeek-R1均以RLVR为核心训练方法 3233
+GRPO vs 专有RL：DeepSeek-R1开源的GRPO与OpenAI未公开的RL方法在思路上趋同（消除value critic、使用可验证奖励），但具体实现仍有差异 34
+CoT从外部提示到内生能力：2024年的CoT依赖提示工程引导，2025年已内化为RL训练的自然产物 3
+仍存在分歧的领域：
+开源vs闭源在CoT透明度上：DeepSeek-R1完全开源推理token，OpenAI对其隐藏 3
+蒸馏vs大规模推理：小模型蒸馏能否完全替代大规模推理时计算仍存疑——研究表明较小蒸馏模型在超过一定"思考长度"后性能停止提升，只有足够大的基座模型才能持续受益 57
+来源矛盾与信息局限性
+Gemini 2.5 Pro HLE分数矛盾：有来源称Gemini 2.5 Pro HLE无工具18.8%为"无工具模型最高"，但o3无工具得分为20.32%（更高）。差异可能源于不同评测配置（如是否使用majority voting），但两个来源均非官方评测 225。
+Llama 4基准操纵：Meta前AI首席Yann LeCun承认Llama 4的基准测试结果被操纵 28。因此本报告对Llama 4的引用需格外谨慎，其实际推理能力可能低于官方宣称。
+部分数据来自模型厂商自报：OpenAI o3和DeepSeek-R1的多项基准分数来自官方发布，第三方独立验证尚不充分。
+时效性限制：部分模型（如Claude Opus 4.5发布于2025年11月）的评测数据基于早期报告，可能存在更新。2025年下半年的模型迭代仍在快速进行中。
+尚待进一步研究的问题
+推理时计算的"最优停止"问题：如何在推理质量和计算成本之间动态平衡？何时应该停止"思考"？
+推理能力的可解释性：长CoT和隐式CoT（Coconut）使模型推理过程更强大但也更不透明
+推理能力的通用性：当前推理模型在数学和编程上表现出色，但在开放域推理、常识推理上的泛化能力仍有限
+基准的持续军备竞赛：随着AIME接近饱和、SWE-bench快速攀升，需要持续设计更难、更全面的评测
+---
+结论
+2024年到2025年，大语言模型的推理能力经历了一场深刻变革。核心结论如下：
+范式已转变：从"训练时扩展"转向"推理时扩展"是两年间最根本的变化。OpenAI o1（2024年9月）开创了这一范式，2025年所有领先推理模型均以此为基石 1229。
+开源追平闭源：DeepSeek-R1的发布（2025年1月）是缩小开源/闭源推理差距的分水岭事件。GRPO算法和开源权重的发布使社区能以极低成本（API价格约为o1的1/10–1/20）获得接近顶级的推理能力 3420。
+基准测试经历换代：MMLU、GSM8K等传统基准已饱和并退居二线。FrontierMath、HLE、ARC-AGI-2等新一代基准揭示了即使最强模型在需要真正泛化和深度专业知识的任务上仍有巨大差距——o3在FrontierMath上仅25.2%，在HLE上仅20.32% 4448。
+RL训练驱动推理能力内化：RLVR和GRPO使推理从外部提示工程变为模型内生能力。R1-Zero实验证明纯RL即可激发"aha moment"式的自我修正行为 36。
+成本快速下降推动生产化：推理模型正从昂贵的"演示品"转变为可负担的生产工具，API成本在两年间下降了1–2个数量级 720。
+总体判断：如果2024年是推理模型的"诞生之年"，2025年则是其"爆发之年"。推理能力不再是小众研究课题，而是成为LLM的核心竞争力维度。然而，当前推理模型在真正的科学发现、数学研究和抽象推理上仍远未饱和——Humanity's Last Exam和FrontierMath上20–25%的得分表明，通往真正的通用推理能力仍有漫长道路。
+---
+参考来源
+模型发布与官方公告
+1 Introducing OpenAI o1-preview — OpenAI (2024-09-12) — https://openai.com/index/introducing-openai-o1-preview/
+2 O1-Preview vs O1-Mini: Key Differences — Seifeur (2024) — https://seifeur.com/o1-preview-vs-o1-mini/
+3 DeepSeek-R1 GitHub Repository — DeepSeek AI (2025-01) — https://github.com/deepseek-ai/DeepSeek-R1
+4 DeepSeek-R1: Incentivizing reasoning in LLMs through reinforcement learning — Nature (2025) — doi:10.1038/s41586-025-09422-z
+5 Introducing OpenAI o3 and o4-mini — OpenAI (2025-04) — https://openai.com/index/introducing-o3-and-o4-mini/
+6 LLM Coding Benchmark Showdown 2026 — ToLearn Blog — https://tolearn.blog/blog/llm-coding-benchmark-comparison-2026
+7 R1 - API Pricing & Benchmarks — OpenRouter — https://openrouter.ai/deepseek/deepseek-r1
+8 Reasoning Frontiers: o1, Test-Time Compute Scaling & Research — M. Brenndoerfer (2024) — https://mbrenndoerfer.com/writing/reasoning-frontiers-o1-test-time-compute-scaling-research
+9 Comparing OpenAI o1 to other Top Models — Walturn (2024) — https://www.walturn.com/insights/comparing-openai-o1-to-other-top-models
+10 Introducing Claude 3.5 Sonnet — Anthropic (2024-06-21) — https://www.anthropic.com/news/claude-3-5-sonnet
+11 DeepSeek-V3 GitHub Repository — DeepSeek AI (2024-12) — https://github.com/deepseek-ai/DeepSeek-V3
+12 DeepSeek-V3 Technical Report — arXiv:2412.19437 (2024-12) — https://www.dochero.ai/en/paper-info/10_48550-arxiv_2412_19437
+13 Gemini 1.5: Unlocking multimodal understanding — Google DeepMind (2024) — https://storage.googleapis.com/deepmind-media/gemini/gemini_v1_5_report.pdf
+14 Evaluating Llama 3.1 405b vs Leading Closed-Source Models — Vellum AI (2024) — https://www.vellum.ai/blog/evaluating-llama-3-1-405b-against-leading-closed-source-competitors
+15 Chain-of-Thought Reasoning: CoT, ToT & GoT Guide — Learn Prompting (2024) — https://learn-prompting.fr/guides/chain-of-thought-reasoning
+16 Search-Based Chain-of-Thought Optimization — EmergentMind (2024) — https://www.emergentmind.com/topics/search-based-chain-of-thought-cot-optimization
+17 A Survey of Frontiers in LLM Reasoning — (2024) — https://llm-reasoning-ai.github.io/survey_arxiv.pdf
+2025年技术论文与方法
+18 o3 and o4-mini: OpenAI's Most Advanced Reasoning Models — Analytics Vidhya (2025-04) — https://www.analyticsvidhya.com/blog/2025/04/o3-and-o4-mini/
+19 DeepSeek-R1 offers promising potential — EurekAlert! (2025) — https://www.eurekalert.org/ (相关报道)
+20 Chinese Startup DeepSeek Showed It Can Rival OpenAI — Business Insider (2025-01) — https://www.businessinsider.com/china-startup-deepseek-openai-america-ai-2025-1
+21 January 2026's Top AI Models — The Prompt Buddy — https://www.thepromptbuddy.com/prompts/january-2026-s-top-ai-models-the-most-powerful-systems-compared
+22 Google's Gemini 2.5 Pro model tops LMArena — R&D World (2025) — https://www.rdworldonline.com/googles-gemini-2-5-pro-model-tops-lmarena-by-40-points/
+23 Gemini 2.5 Pro: The Next Leap — Dirox (2025) — https://dirox.com/post/gemini-2-5-pro
+24 Grok 3 AI — GrokChat (2025) — https://www.grokchat.me/en/
+25 Grok Statistics Overview: Usage & Benchmarks — DoiT (2025) — https://doit.software/blog/grok-statistics
+26 Exploring Alibaba Qwen3 AI Models — WorkMind (2025) — https://workmind.ai/alibaba-qwen3-ai-models/
+27 The Three Models That Matter Right Now — Bixoto Tech (2026) — https://tech.bixoto.com/the-three-models-that-matter-right-now-glm-5-1-vs-qwen3-6-plus-vs-gemma-4-31b/
+28 Results Were Fudged: Meta AI Chief Confirms Llama 4 Benchmark Manipulation — Slashdot (2026-01) — https://tech.slashdot.org/story/26/01/02/1449227/
+29 What is test-time compute and how to scale it? — HuggingFace Blog (2025) — https://huggingface.co/blog/Kseniase/testtimecompute
+30 OpenAI o3 Reasoning Models: Test-Time Compute Scaling Explained — IoT Digital Twin (2026) — https://iotdigitaltwintwinplm.com/openai-o3-reasoning-test-time-compute-scaling-2026/
+31 ATLAS: Agentic Test-time Learning-to-Allocate Scaling — arXiv:2606.01667 (2025) — https://arxiv.org/pdf/2606.01667
+32 Reinforcement Learning with Verifiable Rewards (RLVR) — EmergentMind (2025) — https://www.emergentmind.com/topics/reinforcement-learning-with-verifiable-rewards-rlvr
+33 JustTinker: Minimal RLVR for Building Reasoning Models Under $150 — Guanghan Blog (2025) — https://blog.guanghan.ai/post/260115_justtinker_rlvr/
+34 Why GRPO is Important and How it Works — Oxen Ghost Blog (2025) — https://ghost.oxen.ai/why-grpo-is-important-and-how-it-works/
+35 Awesome-RL-for-LRMs — Tsinghua C3I (2025) — https://github.com/TsinghuaC3I/Awesome-RL-for-LRMs
+36 Understanding R1-Zero-Like Training: A Critical Perspective — arXiv:2503.20783 (2025-03) — https://arxiv.org/abs/2503.20783
+37 Coconut: Chain of Continuous Thought for LLMs — EmergentMind (2025) — https://www.emergentmind.com/topics/coconut-chain-of-continuous-thought
+基准测试与评测
+38 What AI Benchmarks Actually Measure — LinkedIn (2025)
+39 Benchmarks: MMLU, HumanEval, and HELM — EngineersOfAI (2024) — https://www.engineersofai.com/
+40 A Survey on Advanced Reasoning Benchmarks in LLMs — Adaline (2025) — https://www.adaline.ai/blog/
+41 LLM Benchmarks Beyond MMLU: Evaluation Guide — Webcite (2026)
+42 DeepSeek-R1: Incentivizing Reasoning Capability — papers.baulab.info (2025) — https://papers.baulab.info/
+43 DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via RL — Jaunt (2025)
+44 FrontierMath: Evaluating advanced mathematical reasoning — Epoch AI (2024) — https://epoch.ai/blog/frontiermath
+45 Mathematicians talk about o3 scoring 25.2% on FrontierMath — Gigazine (2024)
+46 A new, challenging AGI test stumps most AI models — TechCrunch (2025) — https://techcrunch.com/
+47 Announcing ARC-AGI-2 and ARC Prize 2025 — ARC Prize (2025) — https://arcprize.org/blog/announcing-arc-agi-2-and-arc-prize-2025
+48 Humanity's Last Exam — CAIS / Scale AI (2025) — https://agi.safe.ai/
+49 Benchmarks | AI Wiki — aiwiki.ai (2025) — https://aiwiki.ai/
+50 SWE-bench Verified: LLM Software Engineering Benchmark — EmergentMind (2025) — https://www.emergentmind.com/
+51 SWE-bench Leaderboards — swebench.com (2025) — https://swebench.com/
+52 LiveCodeBench: Holistic and Contamination Free Evaluation — livecodebench.github.io (2024) — https://livecodebench.github.io/
+53 Recent Advances in LLM Benchmarks against Data Contamination — arXiv:2502.17521 (2025) — on ResearchGate
+54 Data Contamination and Evaluation: When Benchmarks Lie — TheoremPath (2025)
+55 Test-time Computing: from System-1 Thinking to System-2 Thinking — arXiv:2501.02497v1 (2025-01) — https://arxiv.org/pdf/2501.02497v1
+56 Advancing Test-Time Computing: Scaling System-2 Thinking — MarkTechPost (2025-01) — https://www.marktechpost.com/2025/01/08/advancing-test-time-computing-scaling-system-2-thinking-for-robust-and-cognitive-ai/
+57 DeepSeek R2 Explained: 92.7% AIME, 32B Open-Weight — Decode the Future (2025) — https://decodethefuture.org/en/deepseek-r2-explained/
+行业分析
+58 Inference-Time Scaling | Introl Blog (2025-12) — https://introl.com/blog/inference-time-scaling-research-reasoning-models-december-2025
+59 Elon Musk's xAI releases its latest flagship model, Grok 3 — TechCrunch (2025-02-17) — https://techcrunch.com/2025/02/17/elon-musks-ai-company-xai-releases-its-latest-flagship-ai-grok-3/
+60 Inside Reasoning Models OpenAI o3 And DeepSeek R1 — Adaline (2025) — https://www.adaline.ai/blog/inside-reasoning-models-openai-o3-and-deepseek-r1
+---
+Supervisor 自评（不计入正文）
+可更深入之处
+推理能力的"质量"维度分析不足：本报告主要依赖基准测试分数作为推理能力的代理指标，但对推理的"质量"维度——如推理步骤的逻辑严谨性、对歧义的处理能力、在不同领域中迁移推理策略的能力——缺乏深入分析。这些维度在HLE和FrontierMath等新基准中有初步体现，但本报告未系统展开讨论。未来研究可引入更多定性分析，例如对模型推理链的专家人工评审。
+地域和生态视角缺失：本报告虽覆盖了中国（DeepSeek、Qwen、Kimi）和美国的模型，但缺少对欧洲（Mistral）和日本等地区推理模型发展的系统性梳理。此外，中国模型中Kimi k1.5的技术细节获取不足（仅知arXiv编号2501.12599），未能与其他RL推理路线进行充分对比。
+证据相对薄弱之处
+Claude 4/Opus 4.5数据可靠性存疑：关于Claude Opus 4.5在SWE-bench Verified上达到80.9%的数据来源于2026年的第三方博客（621），而非Anthropic官方公告或经同行评审的评测。这些来源时间戳晚于当前日期，可能包含推测性内容。建议读者将此数据视为"早期传闻"而非确认事实。
+基准分数的精确性和可比性问题：本报告中的量化对比表（§四、4.1）汇集了来自模型厂商自报、第三方评测博客和基准排行榜的数据，部分来源之间的评测条件（如是否使用CoT提示、是否允许多次采样、是否使用工具）不完全一致。例如，AIME 2025分数在"无工具"和"带Python解释器"条件下差异巨大（o4-mini: 92.7% vs 99.5%）。因此跨模型、跨年份的精确分数比较应被理解为"趋势指示"而非严格的受控实验对比。
+Gemini 2.5 Pro的HLE分数矛盾未解决：有来源称其18.8%为"无工具最高"，但o3无工具为20.32%更高（已在§三中标注）。两个数据均来自非官方评测，需等待标准化第三方评测确认。

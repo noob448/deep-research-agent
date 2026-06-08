@@ -1,0 +1,9 @@
+# CS:GO 游戏发展史 — 研究摘要
+
+Counter-Strike: Global Offensive（CS:GO）由 Valve 与 Hidden Path Entertainment 联合开发，起初始于将 CS:Source 移植至 Xbox 360 的项目，后扩展为面向多平台的全新 CS 作品。游戏于 2011 年 8 月公布，2012 年 8 月 21 日正式登陆 Windows、macOS、PS3 和 Xbox 360，发布初期面临来自 CS 1.6 和 CS:Source 社区的分裂与抵制。
+
+CS:GO 的发展轨迹由四个关键转折点定义。其一，2013 年 8 月的 Arms Deal 更新引入武器皮肤系统和开箱机制，建立了庞大的虚拟物品经济——CS:GO 生命周期总收入估计达 80-100 亿美元，皮肤二级市场估值至 2025 年超过 50 亿美元。其二，2013-2017 年间共推出 8 个 Operation（限时 DLC 活动），将社区创作的皮肤和地图纳入官方内容体系，形成社区共创闭环。其三，2015 年 Valve 对核心系统进行了密集迭代，包括 Hitbox 重构、AWP 削弱和 HRTF 空间音频引入，2018 年 Panorama UI 完成了界面全面现代化。其四，2018 年 12 月 CS:GO 全面免费化并推出 Danger Zone 大逃杀模式，同时通过 Prime Status 和 Trust Factor 双层筛选机制应对反作弊压力。
+
+电竞生态是 CS:GO 持续增长的核心引擎。自 2013 年 DreamHack Winter 起，CS:GO 共举办 19 届 Major 赛事，Astralis 以 4 冠领跑（含 2018-2019 年三连冠王朝）。电竞热度与玩家基数形成正反馈循环，CS:GO/CS2 峰值同时在线突破 150 万。
+
+2023 年 3 月 Valve 公布 Counter-Strike 2，基于 Source 2 引擎引入 sub-tick 服务器架构和动态体积烟雾等核心技术变革，并于 2023 年 9 月 27 日正式上线。CS:GO 于 2024 年 1 月 1 日终止支持，CS2 无缝接替所有皮肤库存和赛事体系。CS:GO 的十一年生命史是"游戏即服务"模式在竞技射击品类中最为成功的实践案例。
