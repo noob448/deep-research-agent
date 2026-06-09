@@ -59,21 +59,42 @@ pip install -r requirements.txt
 
 ---
 
-## 第二步：配置 API Key
+## 第二步：配置 API Key 与模型
+
+项目使用 **OpenAI 兼容协议**，接入什么 API 就用什么模型，不绑定特定厂商。
+
+### 配置 API Key
 
 在项目根目录（`self-project-agent/`）下创建 `deepseek.txt`：
 
 ```
-sk-your-deepseek-api-key
+sk-your-api-key
 ```
 
 或者设置环境变量：
 
 ```bash
-export DEEPSEEK_API_KEY="sk-your-deepseek-api-key"
+export DEEPSEEK_API_KEY="sk-your-api-key"
 ```
 
-默认使用 DeepSeek V4 Pro（OpenAI 兼容接口）。如需切换模型，编辑 `deep_research/config.py` 中的 `AGENT_MODEL`。
+### 切换模型 / 厂商
+
+编辑 `deep_research/config.py`：
+
+```python
+# 模型名（取决于你用的 API 厂商）
+AGENT_MODEL = "deepseek-v4-pro"     # DeepSeek
+# AGENT_MODEL = "gpt-4o"            # OpenAI
+# AGENT_MODEL = "claude-sonnet-4-6" # Anthropic（需兼容网关）
+# AGENT_MODEL = "qwen-plus"         # 阿里通义
+
+# API 地址（不同厂商的 endpoint）
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"      # DeepSeek
+# DEEPSEEK_BASE_URL = "https://api.openai.com/v1"    # OpenAI
+# DEEPSEEK_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里通义
+```
+
+只要 API 支持 OpenAI 兼容格式（`/v1/chat/completions`），改这两个配置就能切换。
 
 ---
 
