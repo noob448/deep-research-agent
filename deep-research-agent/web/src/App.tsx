@@ -36,12 +36,10 @@ export default function App() {
   return (
     <div className={styles.container}>
       <ParticleBg />
+      <VersionTag />
       <header className={styles.header}>
         <h1 className={styles.title}>Deep Research Agent</h1>
-        <p className={styles.subtitle}>
-          多智能体深度研究系统
-          <VersionTag />
-        </p>
+        <p className={styles.subtitle}>多智能体深度研究系统</p>
       </header>
       <main className={styles.main}>
         <ResearchForm state={state} setState={setState} />

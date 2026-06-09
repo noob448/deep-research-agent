@@ -17,11 +17,7 @@ export default function ClaimVerificationPanel({ runId, active }: { runId: strin
     <div className={styles.section}>
       <div className={styles.header}>论断验证 ({c.length}) {Object.entries(counts).map(([k,v]) => <span key={k} className={styles.cb}> {IC[k]||''} {k}:{v}</span>)}</div>
       {l && <div className={styles.empty}>加载中...</div>}
-<<<<<<< HEAD
-      {!l && !c.length && <div className={styles.empty}>暂无论断记录（max 模式 + Verifier 后生成）</div>}
-=======
       {!l && !c.length && <div className={styles.empty}>暂无论断记录（研究完成后自动生成，若此处为空请检查 Verifier 是否正常运行）</div>}
->>>>>>> v4.0-release
       {!l && c.map(x => { const s = x.verification_status||'pending'; return (
         <div key={x.claim_id} className={`${styles.row} ${SC[s]||''}`}>
           <div className={styles.ch}><span className={styles.ci}>{x.claim_id}</span><span className={styles.st}>{IC[s]} {s}</span><span className={styles.im}>{x.importance}</span></div>
