@@ -46,18 +46,6 @@ TIMEOUT_BLOCK_MSG = (
     "直接整理已有发现返回。不要再调用任何搜索工具。"
 )
 
-# ── 上下文输出预算追踪（P1：每个 researcher 独立累计）──
-_tool_output_chars: dict[str, int] = {}
-CONTEXT_SOFT_WARN_MSG = (
-    "\n\n⚠️ 上下文软限制已触发（累计输出 ~{total_k:.0f}K 字符）。"
-    "请优先提炼发现到 /notes/，避免继续抓取大页面。最多再做 1 次必要搜索。"
-)
-CONTEXT_HARD_STOP_MSG = (
-    "\n\n⛔ 上下文硬限制已触发（累计输出 ~{total_k:.0f}K 字符）！"
-    "请**立即停止搜索**，基于已有 source_id 和笔记返回最终结构化发现。"
-    "不要再调用任何搜索或抓取工具。"
-)
-
 
 def set_research_timeout(minutes: int):
     """由 run_test.py 在 Agent 启动前调用，设置硬时限。0=不限。"""
@@ -122,34 +110,6 @@ def _commit_search(query: str = ""):
         tag_cache[qhash] = True
     # 递增计数
     _search_budget[tag] = _search_budget.get(tag, 0) + 1
-
-
-def _track_tool_output(text: str, tool_name: str = "", query_or_url: str = "") -> str:
-    """追踪每个 researcher 的累计工具输出量，超限时追加警告，并加 [TOOL_OBSERVATION] 包装。
-
-    Returns:
-        处理后的文本（含 [TOOL_OBSERVATION] 包装和可能的预算警告）。
-    """
-    tag = _get_tag()
-    n = len(text or "")
-    _tool_output_chars[tag] = _tool_output_chars.get(tag, 0) + n
-    total = _tool_output_chars[tag]
-
-    # ── [TOOL_OBSERVATION] 标准化包装 ──
-    header = "[TOOL_OBSERVATION]"
-    if tool_name:
-        header += f"\ntool: {tool_name}"
-    if query_or_url:
-        is_url = query_or_url.startswith("http://") or query_or_url.startswith("https://")
-        key = "url" if is_url else "query"
-        header += f"\n{key}: {query_or_url}"
-    wrapped = f"{header}\n\n{text}"
-
-    if total >= cfg.TOOL_OUTPUT_HARD_CHAR_LIMIT_PER_AGENT:
-        return wrapped + CONTEXT_HARD_STOP_MSG.format(total_k=total / 1000)
-    if total >= cfg.TOOL_OUTPUT_SOFT_CHAR_LIMIT_PER_AGENT:
-        return wrapped + CONTEXT_SOFT_WARN_MSG.format(total_k=total / 1000)
-    return wrapped
 
 # web_fetch 重试配置
 MAX_FETCH_RETRIES = 3
@@ -232,27 +192,7 @@ def web_search(query: str) -> str:
             title = r.get("title", "无标题")
             href = r.get("href", "")
             body = r.get("body", "无摘要")
-
-            # ── P1: 注册搜索结果为轻量 source ────────────
-            source_id = ""
-            if cfg.ENABLE_SOURCE_REGISTRY and href:
-                try:
-                    from .source_registry import register_source
-                    rec = register_source(
-                        url=href,
-                        text="",  # 搜索摘要不保存全文
-                        title=title,
-                        source_type="search_result",
-                        query=query,
-                        tool="web_search",
-                    )
-                    source_id = f"source_id: {rec.source_id}"
-                except Exception:
-                    pass
-
             lines.append(f"{i}. {title}")
-            if source_id:
-                lines.append(f"   {source_id}")
             lines.append(f"   URL: {href}")
             # 注册来源
             sid = _try_register_source(href, title, "", "search_result", query, "web_search")
@@ -260,7 +200,7 @@ def web_search(query: str) -> str:
                 lines.append(f"   {sid}")
             lines.append(f"   摘要: {body}\n")
 
-        return _track_tool_output("\n".join(lines), tool_name="web_search", query_or_url=query)
+        return "\n".join(lines)
 
     except Exception as e:
         _log(f"[搜索] 失败: {e}")
@@ -271,19 +211,21 @@ def web_search(query: str) -> str:
 
 @tool
 def web_fetch(url: str) -> str:
-    """获取单个网页内容。全文保存到 /sources/，工具返回轻量摘要（source_id + snippet）。
+    """获取单个网页的完整文本内容。失败时自动重试最多3次。
 
     使用时机：
     - 搜索返回的摘要不够详细，需要深入阅读某篇文章
     - 需要从特定来源获取完整信息
     - 需要文章的精确引用或数据
 
-    获取后全文已自动保存。你只需引用 source_id，不要将整页原文留在上下文中。
+    获取后立即将关键内容提炼到 /notes/ 文件中，不要将整页原文留在上下文中。
+    内容会被截断以避免超出上下文窗口。
     """
     # arXiv 镜像加速（国内网络环境）
     if cfg.ARXIV_MIRROR:
         url = url.replace("arxiv.org", cfg.ARXIV_MIRROR)
 
+    # 缩短 URL 用于显示
     short_url = url[:80] + "..." if len(url) > 80 else url
     _log(f"[抓取] {short_url}")
 
@@ -312,51 +254,13 @@ def web_fetch(url: str) -> str:
                 response.raise_for_status()
 
             html = response.text
-            text = _extract_main_content(html)
+            text = _html_to_text(html)
             _log(f"[抓取] 成功，{len(text)} 字符")
 
-            # ── P1: 注册 source + 保存全文 ──────────────────
-            if cfg.ENABLE_SOURCE_REGISTRY:
-                try:
-                    from .source_registry import register_source, format_source_tool_response
-
-                    # 尝试从 HTML 提取标题
-                    import re as _re
-                    title_match = _re.search(r"<title>(.+?)</title>", html, _re.IGNORECASE)
-                    page_title = title_match.group(1).strip() if title_match else None
-
-                    record = register_source(
-                        url=url,
-                        text=text if cfg.WEB_FETCH_FULLTEXT_SAVE else "",
-                        title=page_title,
-                        source_type="web",
-                        tool="web_fetch",
-                    )
-
-                    # 返回给 Agent 的 snippet（截断到 inline limit）
-                    snippet = text[:cfg.WEB_FETCH_INLINE_CHAR_LIMIT]
-                    if len(text) > cfg.WEB_FETCH_INLINE_CHAR_LIMIT:
-                        snippet += f"\n[... 全文共 {len(text)} 字符，已保存到 {record.saved_path}]"
-
-                    result = format_source_tool_response(record, snippet)
-                    return _track_tool_output(result, tool_name="web_fetch", query_or_url=url)
-                except Exception as e:
-                    _log(f"[source_registry] 失败（降级返回原文）: {e}")
-                    # 降级：返回截断后的原文
-                    if len(text) > cfg.FETCH_CHAR_LIMIT:
-                        text = text[:cfg.FETCH_CHAR_LIMIT] + (
-                            f"\n\n[... 内容已截断，原文共 {len(text)} 字符 ...]"
-                        )
-                    return _track_tool_output(f"来源: {url}\n\n{text}", tool_name="web_fetch", query_or_url=url)
-
-            # 未启用 source registry 时的旧行为
             if len(text) > cfg.FETCH_CHAR_LIMIT:
                 text = text[:cfg.FETCH_CHAR_LIMIT] + (
                     f"\n\n[... 内容已截断，原文共 {len(text)} 字符 ...]"
                 )
-<<<<<<< HEAD
-            return _track_tool_output(f"来源: {url}\n\n{text}", tool_name="web_fetch", query_or_url=url)
-=======
 
             # 注册来源（全文保存到 /sources/）
             sid = _try_register_source(url, None, text if cfg.WEB_FETCH_FULLTEXT_SAVE else "", "web", "", "web_fetch")
@@ -366,7 +270,6 @@ def web_fetch(url: str) -> str:
             if len(text) > cfg.WEB_FETCH_INLINE_CHAR_LIMIT:
                 text = text[:cfg.WEB_FETCH_INLINE_CHAR_LIMIT] + f"\n[... 全文共 {len(text)} 字符 ...]"
             return f"来源: {url}{fulltext_note}\n\n{text}"
->>>>>>> v4.0-release
 
         except Exception as e:
             last_error = e
@@ -382,38 +285,6 @@ def web_fetch(url: str) -> str:
             )
 
     return f"获取页面失败: {type(last_error).__name__}: {last_error}"
-
-
-def _extract_main_content(html: str) -> str:
-    """正文抽取：trafilatura → readability → regex fallback（优雅降级）。"""
-    text = None
-
-    # 1. trafilatura（最优）
-    if cfg.USE_TRAFILATURA:
-        try:
-            import trafilatura
-            text = trafilatura.extract(html, include_comments=False, include_tables=True)
-            if text:
-                text = text.strip()
-        except Exception:
-            pass
-
-    # 2. readability-lxml fallback
-    if (not text) and cfg.USE_READABILITY_FALLBACK:
-        try:
-            from readability import Document as ReadabilityDoc
-            doc = ReadabilityDoc(html)
-            text = doc.summary()
-            if text:
-                text = _html_to_text(text)
-        except Exception:
-            pass
-
-    # 3. 正则 fallback（保证始终有结果）
-    if not text:
-        text = _html_to_text(html)
-
-    return text.strip()
 
 
 def _html_to_text(html: str) -> str:
@@ -540,38 +411,14 @@ def search_openalex(query: str, max_results: int = 5) -> str:
         if len(abstract) > 500:
             abstract = abstract[:500] + "..."
 
-        # ── P1: 注册论文 source ────────────────────────────
-        source_id = ""
-        if cfg.ENABLE_SOURCE_REGISTRY:
-            try:
-                from .source_registry import register_source
-                rec = register_source(
-                    url=url,
-                    text=abstract,  # 学术摘要保存为 source text
-                    title=title,
-                    doi=doi if doi else None,
-                    authors=authors if authors else None,
-                    published_at=str(year) if year else None,
-                    source_type="paper",
-                    query=query,
-                    tool="search_openalex",
-                )
-                source_id = f"source_id: {rec.source_id}"
-            except Exception:
-                pass
-
         out_lines.append(f"标题: {title}")
-        if source_id:
-            out_lines.append(f"  {source_id}")
         out_lines.append(f"年份: {year}")
         out_lines.append(f"作者: {', '.join(filter(None, authors))}")
         out_lines.append(f"链接: {url}")
-        if doi:
-            out_lines.append(f"DOI: {doi}")
         out_lines.append(f"摘要: {abstract}")
         out_lines.append("")
 
-    return _track_tool_output("\n".join(out_lines), tool_name="search_openalex", query_or_url=query)
+    return "\n".join(out_lines)
 
 
 @tool
@@ -649,29 +496,7 @@ def search_crossref(query: str, max_results: int = 5) -> str:
             for a in (it.get("author") or [])[:5]
         ]
 
-        # ── P1: 注册论文 source ────────────────────────────
-        source_id = ""
-        if cfg.ENABLE_SOURCE_REGISTRY:
-            try:
-                from .source_registry import register_source
-                rec = register_source(
-                    url=url_item,
-                    text="",
-                    title=title,
-                    doi=doi if doi else None,
-                    authors=authors if authors else None,
-                    published_at=str(year) if year else None,
-                    source_type="paper",
-                    query=query,
-                    tool="search_crossref",
-                )
-                source_id = f"source_id: {rec.source_id}"
-            except Exception:
-                pass
-
         out_lines.append(f"标题: {title}")
-        if source_id:
-            out_lines.append(f"  {source_id}")
         out_lines.append(f"期刊: {journal}")
         out_lines.append(f"年份: {year}")
         out_lines.append(f"DOI: {doi}")
@@ -679,105 +504,7 @@ def search_crossref(query: str, max_results: int = 5) -> str:
         out_lines.append(f"作者: {', '.join(filter(None, authors))}")
         out_lines.append("")
 
-    return _track_tool_output("\n".join(out_lines), tool_name="search_crossref", query_or_url=query)
-
-
-# ── 国内来源搜索 ────────────────────────────────────────
-
-@tool
-def search_cn(query: str, source: str = "all") -> str:
-    """搜索中文来源网站（知乎、百度百科、百度学术等），通过 DuckDuckGo 的 site: 过滤器实现。
-
-    使用时机：
-    - 中文论文/学位论文: source="xueshu"（百度学术索引）
-    - 中文技术讨论/实践经验: source="zhihu"（知乎高质量长文）
-    - 中文事实/定义/背景: source="baike"（百度百科）
-    - 不确定/全都要: source="all"（同时搜索以上全部）
-
-    Args:
-        query: 搜索查询（中文效果最佳，不需加 site: 前缀）
-        source: 来源选择 — "zhihu" | "baike" | "xueshu" | "all"(默认)
-
-    搜索结果经过重排和 source 注册，返回轻量摘要（含 source_id）。
-    计入搜索预算（与 web_search 共享上限）。
-    """
-    budget_block = _check_search_budget(query)
-    if budget_block:
-        return budget_block
-
-    sources = cfg.CN_SOURCES
-    if source not in sources and source != "all":
-        return f"不支持的中文来源: {source}。可选: {', '.join(sources.keys())}, all"
-
-    site_names = list(sources.keys()) if source == "all" else [source]
-    site_filters = [sources[n] for n in site_names]
-    site_query = " OR ".join(site_filters)
-    full_query = f"{query} {site_query}"
-
-    _log(f"[中文搜索:{source}] {query[:80]}")
-
-    try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(full_query, max_results=cfg.CN_SEARCH_MAX_RESULTS))
-    except Exception as e:
-        _log(f"[中文搜索] DDGS 调用失败: {e}")
-        if cfg.COUNT_FAILED_SEARCHES:
-            _commit_search(query)
-        return f"中文来源搜索失败: {type(e).__name__}: {e}"
-
-    if not results:
-        _log(f"[中文搜索] 无结果")
-        if cfg.COUNT_FAILED_SEARCHES:
-            _commit_search(query)
-        return f"中文来源 '{source}' 未找到关于 '{query}' 的结果。请尝试更简洁的关键词或切换来源。"
-
-    # 搜索成功 → 计数
-    _commit_search(query)
-    _log(f"[中文搜索] 找到 {len(results)} 条结果（重排前）")
-
-    # ── 重排 ──
-    if cfg.RERANK_ENABLED and len(results) > cfg.RERANK_TOP_K:
-        try:
-            from .rerank import rerank_results
-            results = rerank_results(query, results)
-            _log(f"[中文搜索] 重排后保留 {len(results)} 条")
-        except Exception:
-            pass
-
-    # ── 格式化输出 ──
-    src_label = {"zhihu": "知乎", "baike": "百度百科", "xueshu": "百度学术"}
-    lines = [f"中文来源搜索 ({', '.join(src_label.get(n, n) for n in site_names)}): {query}\n"]
-
-    for i, r in enumerate(results, 1):
-        title = r.get("title", "无标题")
-        href = r.get("href", "")
-        body = r.get("body", "无摘要")
-
-        source_id = ""
-        if cfg.ENABLE_SOURCE_REGISTRY and href:
-            try:
-                from .source_registry import register_source
-                source_type_map = {"zhihu": "community", "baike": "encyclopedia", "xueshu": "paper"}
-                stype = source_type_map.get(source, "web") if source != "all" else "web"
-                rec = register_source(
-                    url=href,
-                    text="",
-                    title=title,
-                    source_type=stype,
-                    query=query,
-                    tool="search_cn",
-                )
-                source_id = f"source_id: {rec.source_id}"
-            except Exception:
-                pass
-
-        lines.append(f"{i}. {title}")
-        if source_id:
-            lines.append(f"   {source_id}")
-        lines.append(f"   URL: {href}")
-        lines.append(f"   摘要: {body}\n")
-
-    return _track_tool_output("\n".join(lines), tool_name="search_cn", query_or_url=query)
+    return "\n".join(out_lines)
 
 
 # ── 本地知识库检索 ──────────────────────────────────────
