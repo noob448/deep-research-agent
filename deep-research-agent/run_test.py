@@ -460,7 +460,7 @@ if _should_verify and report.exists():
     try:
         from deep_research.claim_verifier import verify_report
         print(f'\n  [验证] 正在抽取并验证关键论断...', flush=True)
-        report_event("phase_changed", {"phase": "verification"})
+        record_event("phase_changed", {"phase": "verification"})
         update_progress(phase="verification")
         vresult = verify_report(max_claims=10)
         print(f'  [验证] 完成: {vresult["total_claims"]} claims → '
