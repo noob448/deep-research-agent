@@ -147,3 +147,12 @@ ACADEMIC_MAILTO = ""            # 你的邮箱，填入后 OpenAlex/Crossref 响
 USE_OPENALEX = True             # 首选学术搜索（覆盖 2.4 亿+ 中外论文）
 USE_CROSSREF = True             # DOI/期刊/作者等规范元数据
 ARXIV_MIRROR = "xxx.itp.ac.cn"  # 中科院 arXiv 镜像，加速论文下载（空字符串则用原站）
+
+# ── 国内来源 (DDGS site: 过滤器) ─────────────────────────
+USE_CN_SEARCH = True            # 中文来源搜索工具
+CN_SEARCH_MAX_RESULTS = 10      # 每次返回条数（重排前）
+CN_SOURCES = {                  # 支持的中文站点
+    "zhihu": "site:zhihu.com",          # 知乎: 技术讨论
+    "baike": "site:baike.baidu.com",    # 百度百科: 事实定义
+    "xueshu": "site:xueshu.baidu.com",  # 百度学术: 中文论文
+}

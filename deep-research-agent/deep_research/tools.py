@@ -507,6 +507,75 @@ def search_crossref(query: str, max_results: int = 5) -> str:
     return "\n".join(out_lines)
 
 
+# ── 国内来源搜索 ────────────────────────────────────────
+
+@tool
+def search_cn(query: str, source: str = "all") -> str:
+    """搜索中文来源网站（知乎、百度百科、百度学术等），通过 DuckDuckGo 的 site: 过滤器实现。
+
+    使用时机：
+    - 中文论文: source="xueshu"（百度学术索引）
+    - 中文技术讨论: source="zhihu"（知乎高质量长文）
+    - 中文百科: source="baike"（百度百科）
+    - 全都要: source="all"（默认，同时搜索以上全部）
+
+    计入搜索预算（与 web_search 共享上限）。
+    """
+    budget_block = _check_search_budget(query)
+    if budget_block:
+        return budget_block
+
+    sources = cfg.CN_SOURCES
+    if source not in sources and source != "all":
+        return f"不支持的中文来源: {source}。可选: {', '.join(sources.keys())}, all"
+
+    site_names = list(sources.keys()) if source == "all" else [source]
+    site_filters = [sources[n] for n in site_names]
+    site_query = " OR ".join(site_filters)
+    full_query = f"{query} {site_query}"
+
+    _log(f"[中文搜索:{source}] {query[:80]}")
+
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(full_query, max_results=cfg.CN_SEARCH_MAX_RESULTS))
+    except Exception as e:
+        _log(f"[中文搜索] 失败: {e}")
+        if cfg.COUNT_FAILED_SEARCHES:
+            _commit_search(query)
+        return f"中文来源搜索失败: {type(e).__name__}: {e}"
+
+    if not results:
+        _log(f"[中文搜索] 无结果")
+        if cfg.COUNT_FAILED_SEARCHES:
+            _commit_search(query)
+        return f"中文来源 '{source}' 未找到关于 '{query}' 的结果。"
+
+    _commit_search(query)
+    _log(f"[中文搜索] 找到 {len(results)} 条结果（重排前）")
+
+    if cfg.RERANK_ENABLED and len(results) > cfg.RERANK_TOP_K:
+        try:
+            from .rerank import rerank_results
+            results = rerank_results(query, results)
+        except Exception:
+            pass
+
+    src_label = {"zhihu": "知乎", "baike": "百度百科", "xueshu": "百度学术"}
+    lines = [f"中文来源搜索 ({', '.join(src_label.get(n, n) for n in site_names)}): {query}\n"]
+    for i, r in enumerate(results, 1):
+        title = r.get("title", "无标题")
+        href = r.get("href", "")
+        body = r.get("body", "无摘要")
+        sid = _try_register_source(href, title, "", "web", query, "search_cn")
+        lines.append(f"{i}. {title}")
+        if sid: lines.append(f"   {sid}")
+        lines.append(f"   URL: {href}")
+        lines.append(f"   摘要: {body}\n")
+
+    return "\n".join(lines)
+
+
 # ── 本地知识库检索 ──────────────────────────────────────
 
 @tool
