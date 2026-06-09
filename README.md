@@ -27,9 +27,17 @@
 
 ## 环境要求
 
-- Python 3.10+
-- Node.js 18+（Web 前端构建）
-- 至少 4GB 可用内存（BGE-M3 ~1.2GB + BGE reranker ~300MB）
+| 资源 | 需求 | 说明 |
+|------|------|------|
+| Python | 3.10+ | |
+| Node.js | 18+ | 仅 Web 前端构建时需要 |
+| 内存 | 4GB+（推荐 8GB） | BGE-M3 嵌入模型 ~1.2GB + BGE reranker ~300MB |
+| 磁盘 | ~3GB 空闲 | 模型下载后缓存，Chroma 向量库增量增长 |
+| CPU | 任意现代 CPU | 模型在 CPU 上运行，无需 GPU |
+| GPU | **不需要** | LLM 推理走 DeepSeek API，本地仅做轻量文本嵌入 |
+| 网络 | 需要 | 调用 DeepSeek API + DuckDuckGo 搜索 |
+
+> 核心计算在云端——推理走 API，本地只跑 CPU 优化的文本嵌入。几年前的旧笔记本也能正常运行。
 
 ---
 
