@@ -12,15 +12,23 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent  # deep-research-agent/
 WORKSPACE_DIR = PROJECT_ROOT / "workspace"
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"  # deep_research/skills/
 
+<<<<<<< HEAD
 # ─── Run / State 配置 ───────────────────────────────────
 # 每次研究生成独立 run 目录，支持断点恢复和事件追踪
+=======
+# ── Run / State 配置 ───────────────────────────────────
+>>>>>>> v4.0-release
 RUNS_DIR = PROJECT_ROOT / "runs"
 DEFAULT_RUN_ID_FORMAT = "%Y%m%d_%H%M%S"
 STATE_SCHEMA_VERSION = 1
 ENABLE_RUN_STATE = True
+<<<<<<< HEAD
 COPY_LATEST_TO_WORKSPACE = True   # run 完成后将 latest workspace 复制到项目根 workspace/
 
 # workspace 兼容策略（保留旧 workspace/ 目录，避免旧脚本崩溃）
+=======
+COPY_LATEST_TO_WORKSPACE = True
+>>>>>>> v4.0-release
 LEGACY_WORKSPACE_COMPAT = True
 
 # 事件日志与账本文件名
@@ -30,6 +38,20 @@ SOURCES_LEDGER_FILENAME = "sources.jsonl"
 CLAIMS_LEDGER_FILENAME = "claims.jsonl"
 VERIFICATION_LEDGER_FILENAME = "verification.jsonl"
 
+<<<<<<< HEAD
+=======
+# ── Source / Claim Ledger ───────────────────────────────
+ENABLE_SOURCE_REGISTRY = True
+SOURCE_ID_PREFIX = "src"
+SOURCE_SNIPPET_CHAR_LIMIT = 800
+WEB_FETCH_INLINE_CHAR_LIMIT = 1200
+WEB_FETCH_FULLTEXT_SAVE = True
+SOURCE_LEDGER_ENABLED = True
+CLAIM_LEDGER_ENABLED = True
+VERIFIER_ENABLED = True
+VERIFIER_AS_SUBAGENT = False  # V3.0: 用 Python orchestration 层调用
+
+>>>>>>> v4.0-release
 # ─── DeepSeek API 配置 ───────────────────────────────────
 # DeepSeek 使用 OpenAI 兼容格式
 # 优先级: 环境变量 > 项目根目录的 deepseek.txt
@@ -104,6 +126,11 @@ REPORT_FILENAME = "report.md"
 OUTPUT_DOCX_FILENAME = "report.docx"
 
 # ─── 归档配置 ───────────────────────────────────────────
+<<<<<<< HEAD
+=======
+SUMMARIZE_MODEL = "deepseek-v4-pro"  # 分类+浓缩用的模型，可独立切换为更廉价的模型
+VERIFIER_MODEL = "deepseek-v4-pro"   # 事实验证模型
+>>>>>>> v4.0-release
 
 # ─── 向量库 / RAG 配置 ───────────────────────────────────
 # 将历史研究摘要向量化，存入本地 Chroma，供研究员检索历史积累

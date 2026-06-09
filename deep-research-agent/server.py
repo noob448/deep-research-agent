@@ -74,7 +74,10 @@ def start_research():
     if not topic:
         return jsonify({"error": "缺少 topic"}), 400
 
+<<<<<<< HEAD
     # 预生成 run_id（与 run_test.py 共享，确保 SSE 事件中的 run_id 正确）
+=======
+>>>>>>> v4.0-release
     from datetime import datetime
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -162,22 +165,32 @@ def health():
 @app.route("/api/version")
 def version_info():
     """返回当前版本信息（git commit + 关键文件修改时间）。"""
+<<<<<<< HEAD
     import subprocess
     import os as _os
 
     info = {"status": "ok"}
 
     # 1. Git 信息
+=======
+    import os as _os
+    info = {"status": "ok"}
+>>>>>>> v4.0-release
     try:
         result = subprocess.run(
             ["git", "log", "-1", "--format=%H|%h|%ci|%s"],
             capture_output=True, text=True, timeout=5,
+<<<<<<< HEAD
             cwd=str(PROJECT_ROOT),
             encoding="utf-8", errors="replace",
+=======
+            cwd=str(PROJECT_ROOT), encoding="utf-8", errors="replace",
+>>>>>>> v4.0-release
         )
         if result.returncode == 0:
             parts = result.stdout.strip().split("|", 3)
             if len(parts) == 4:
+<<<<<<< HEAD
                 info["git"] = {
                     "full_hash": parts[0],
                     "short_hash": parts[1],
@@ -203,6 +216,11 @@ def version_info():
     except Exception:
         info["file_mtimes"] = None
 
+=======
+                info["git"] = {"full_hash": parts[0], "short_hash": parts[1], "date": parts[2], "message": parts[3]}
+    except Exception:
+        info["git"] = None
+>>>>>>> v4.0-release
     return jsonify(info)
 
 
@@ -210,14 +228,39 @@ def version_info():
 def list_runs_api():
     """列出所有已记录的 run。"""
     try:
+<<<<<<< HEAD
         from deep_research.runtime_state import list_runs
         runs = list_runs()
         return jsonify({"runs": runs})
+=======
+        runs_dir = PROJECT_ROOT / "runs"
+        if not runs_dir.exists():
+            return jsonify({"runs": []})
+        runs = []
+        for d in sorted(runs_dir.iterdir(), reverse=True):
+            if d.is_dir() and not d.name.startswith("test"):
+                progress_file = d / "state" / "research_progress.json"
+                topic = ""
+                status = "unknown"
+                phase = ""
+                has_report = (d / "workspace" / "report.md").exists()
+                if progress_file.exists():
+                    try:
+                        p = json.loads(progress_file.read_text(encoding="utf-8"))
+                        topic = p.get("topic", "")
+                        phase = p.get("phase", "")
+                        status = "completed" if phase == "completed" else ("running" if phase else "unknown")
+                    except Exception:
+                        pass
+                runs.append({"run_id": d.name, "status": status, "phase": phase, "topic": topic[:80], "has_report": has_report})
+        return jsonify({"runs": runs[:20]})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/runs/<run_id>")
+<<<<<<< HEAD
 def get_run_detail(run_id):
     """获取指定 run 的详情（progress + 文件列表）。"""
     try:
@@ -244,10 +287,29 @@ def get_run_detail(run_id):
             "progress": progress,
             "files": files,
         })
+=======
+def get_run(run_id):
+    """返回指定 run 的详情。"""
+    try:
+        run_dir = PROJECT_ROOT / "runs" / run_id
+        if not run_dir.exists():
+            return jsonify({"error": "Run 不存在"}), 404
+        progress_file = run_dir / "state" / "research_progress.json"
+        progress = {}
+        if progress_file.exists():
+            progress = json.loads(progress_file.read_text(encoding="utf-8"))
+        files = []
+        for fn in ["report.md", "report.docx", "research_summary.txt"]:
+            fp = run_dir / "workspace" / fn
+            if fp.exists():
+                files.append({"name": fn, "size": fp.stat().st_size})
+        return jsonify({"run_id": run_id, "progress": progress, "files": files})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+<<<<<<< HEAD
 @app.route("/api/runs/<run_id>/events")
 def get_run_events(run_id):
     """返回指定 run 的 events.jsonl 内容。"""
@@ -264,12 +326,58 @@ def get_run_events(run_id):
                 except json.JSONDecodeError:
                     pass
         return jsonify({"events": lines, "count": len(lines)})
+=======
+def _find_latest_run_dir():
+    """找到最新的 run 目录（降级方案）。"""
+    runs_dir = PROJECT_ROOT / "runs"
+    if not runs_dir.exists():
+        return None
+    dirs = sorted([d for d in runs_dir.iterdir() if d.is_dir() and not d.name.startswith("test")], reverse=True)
+    return dirs[0] if dirs else None
+
+def _find_file(run_id, relative_path):
+    """按 run_id 找文件，失败则用最新 run，再失败返回 None。"""
+    # 精确匹配
+    path = PROJECT_ROOT / "runs" / run_id / relative_path
+    if path.exists():
+        return path
+    # 最新 run 降级
+    latest = _find_latest_run_dir()
+    if latest:
+        path = latest / relative_path
+        if path.exists():
+            return path
+    # workspace 降级（strip "workspace/" 前缀避免路径重复）
+    ws_relative = relative_path.replace("workspace/", "", 1) if relative_path.startswith("workspace/") else relative_path
+    path = PROJECT_ROOT / "workspace" / ws_relative
+    if path.exists():
+        return path
+    return None
+
+
+@app.route("/api/runs/<run_id>/events")
+def get_run_events(run_id):
+    """返回指定 run 的 events.jsonl。"""
+    try:
+        path = _find_file(run_id, "state/events.jsonl")
+        if not path:
+            return jsonify({"events": [], "count": 0})
+        events = []
+        for line in path.read_text(encoding="utf-8").strip().split("\n"):
+            if line:
+                try:
+                    events.append(json.loads(line))
+                except Exception:
+                    pass
+        return jsonify({"events": events, "count": len(events)})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/runs/<run_id>/sources")
 def get_run_sources(run_id):
+<<<<<<< HEAD
     """返回指定 run 的 sources.jsonl 内容。"""
     try:
         from deep_research import config as cfg
@@ -284,12 +392,28 @@ def get_run_sources(run_id):
                 except json.JSONDecodeError:
                     pass
         return jsonify({"sources": lines, "count": len(lines)})
+=======
+    """返回指定 run 的 sources.jsonl。"""
+    try:
+        path = _find_file(run_id, "state/sources.jsonl")
+        if not path:
+            return jsonify({"sources": [], "count": 0})
+        sources = []
+        for line in path.read_text(encoding="utf-8").strip().split("\n"):
+            if line:
+                try:
+                    sources.append(json.loads(line))
+                except Exception:
+                    pass
+        return jsonify({"sources": sources, "count": len(sources)})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/runs/<run_id>/claims")
 def get_run_claims(run_id):
+<<<<<<< HEAD
     """返回指定 run 的 claims.jsonl 内容。"""
     try:
         from deep_research import config as cfg
@@ -304,12 +428,28 @@ def get_run_claims(run_id):
                 except json.JSONDecodeError:
                     pass
         return jsonify({"claims": lines, "count": len(lines)})
+=======
+    """返回指定 run 的 claims.jsonl。"""
+    try:
+        path = _find_file(run_id, "state/claims.jsonl")
+        if not path:
+            return jsonify({"claims": [], "count": 0})
+        claims = []
+        for line in path.read_text(encoding="utf-8").strip().split("\n"):
+            if line:
+                try:
+                    claims.append(json.loads(line))
+                except Exception:
+                    pass
+        return jsonify({"claims": claims, "count": len(claims)})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/runs/<run_id>/report")
 def get_run_report(run_id):
+<<<<<<< HEAD
     """返回指定 run 的 report.md 内容。"""
     try:
         from deep_research import config as cfg
@@ -360,6 +500,14 @@ def resume_run(run_id):
                 _running_tasks.pop(task_id, None)
 
         return Response(generate(), mimetype="text/event-stream")
+=======
+    """返回指定 run 的 report.md。"""
+    try:
+        path = _find_file(run_id, "workspace/report.md")
+        if not path:
+            return jsonify({"error": "report.md 不存在"}), 404
+        return jsonify({"report": path.read_text(encoding="utf-8"), "size": path.stat().st_size})
+>>>>>>> v4.0-release
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -370,6 +518,7 @@ def download_run_file(run_id, filename):
     allowed = {"report.md", "report.docx", "research_summary.txt"}
     if filename not in allowed:
         return jsonify({"error": "不允许下载该文件"}), 403
+<<<<<<< HEAD
 
     from deep_research import config as cfg
 
@@ -393,6 +542,15 @@ def download_run_file(run_id, filename):
         as_attachment=True,
         download_name=filename,
     )
+=======
+    file_path = PROJECT_ROOT / "runs" / run_id / "workspace" / filename
+    if not file_path.exists():
+        file_path = PROJECT_ROOT / "workspace" / filename
+    if not file_path.exists():
+        return jsonify({"error": "文件不存在"}), 404
+    mime_map = {".md": "text/markdown; charset=utf-8", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".txt": "text/plain; charset=utf-8"}
+    return send_file(str(file_path), mimetype=mime_map.get(file_path.suffix, "application/octet-stream"), as_attachment=True, download_name=filename)
+>>>>>>> v4.0-release
 
 
 @app.errorhandler(404)

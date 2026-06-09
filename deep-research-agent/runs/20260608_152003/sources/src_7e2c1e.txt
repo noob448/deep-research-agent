@@ -1,0 +1,190 @@
+Early Radio Nav 1926-1960
+
+ 
+
+Flying the Beams
+Flying the BeamsFlying the BeamsFlying the Beams
+
+Flying the Beams
+Flying the BeamsFlying the BeamsFlying the Beams
+
+Home
+
+Low Frequency Radio Range
+
+What it Was
+
+Its Use
+
+Its Fate
+
+Map
+
+Other Early Radio Nav
+
+Early Radio Nav 1926-1960
+
+Early Radio Nav 1960-2000
+
+Early Radio Tech
+
+More Stuff
+
+Extra
+
+Resources
+
+Contact
+
+More
+
+Home
+
+Low Frequency Radio Range
+
+What it Was
+
+Its Use
+
+Its Fate
+
+Map
+
+Other Early Radio Nav
+
+Early Radio Nav 1926-1960
+
+Early Radio Nav 1960-2000
+
+Early Radio Tech
+
+More Stuff
+
+Extra
+
+Resources
+
+Contact
+
+Home
+
+Low Frequency Radio Range
+
+What it Was
+
+Its Use
+
+Its Fate
+
+Map
+
+Other Early Radio Nav
+
+Early Radio Nav 1926-1960
+
+Early Radio Nav 1960-2000
+
+Early Radio Tech
+
+More Stuff
+
+Extra
+
+Resources
+
+Contact
+
+ 
+
+ 
+
+EARLY RADIO NAV / 1926 - 1950
+
+Other Radio Navigation Systems of the 20th Century
+
+ 
+Overview
+
+ 
+The Lorenz Beam
+
+ 
+Sonne & Consol
+
+ 
+Gee: The Origin of Hyperbolic Navigation
+
+ 
+LORAN: Long Range Navigation
+
+ 
+Decca: Hyperbolic Navigation Simplified
+
+ 
+Post 1950's Systems
+
+A 1945 Gee Navigation Map (McMasters University)
+
+ 
+
+ 
+
+OVERVIEW
+
+This site focuses primarily on the history of the Low Frequency Radio Range (LFR). However, we believe it's also useful to provide the context of the many other major radio navigation systems that were its contemporaries throughout the world. This page provides a general overview of each system, maps of known station locations, and references to other sites run by dedicated subject matter experts that can provide more in-depth information. These references are based upon our personal research on the web, if others believe we should add other sources, by all means, please contact me.
+
+Inspired by a 1907 patent by German engineer Otto Scheller, the US deployed LFR as the first widespread aerial radio navigation system in 1927 as a superior alternative to the then inherent limitations of the Radio Compass. Within a few years, Germany’s Lorenz A.G. developed landing and long-range navigation systems that used the same interlocking beam principle. As Europe veered closer to World War II, both Axis and Allied powers sought to gain a strategic upper hand with improved technology. The Lorenz company would upgrade the power of its landing aid to steer Luftwaffe bombers over Britain, and used it as the basis for a multibeam system that became Sonne / Consol. The Allied forces applied earlier theory of hyperbolic navigation systems to create Gee, LORAN and Decca. 
+
+These three latter systems proved very effective and were widely adapted for civilian use during the Post War period. The 1960’s saw the addition of Omega, the first worldwide system, and the Russian Chayka and Alpha systems. VOR (after the interim VAR system), covered in detail on the “Its Fate” page, would ultimately become the international standard for aerial navigation, but LORAN, Decca and Omega would persist until the turn of the 21st century until they were finally displaced by Satellite Navigation. 
+
+Comparison of Systems by Total Number of Stations: In compiling this information, we tallied the total number of ground stations for each system, listed below in descending order. This list includes only long-range stations and excludes instrument landing aids:
+
+ 
+VOR ≈3,000 Stations, 66.3 %
+
+ 
+LFR ≈ 880 Stations, 19.5%
+
+ 
+Decca ≈ 230 Stations, 5.5%
+
+ 
+LORAN-A & C 155 Stations, 3.4%
+
+ 
+VAR Stations ≈ 120 Stations (70 US, plus ≈50 in Australia), 2.6%
+
+ 
+Gee ≈ 75 Stations, 1.7%
+
+ 
+Chayka 24 Stations, 0.5%
+
+ 
+Lorenz (long range) 15 Stations (Australia Aeradio), 0.3%
+
+ 
+Sonne / Consol 14 Stations, 0.3% 
+
+ 
+Omega 9 Stations, 0.2%
+
+ 
+Alpha 5 Stations, 0.1%
+
+ 
+TOTAL ≈4,524 Stations, 100.0% 
+
+Thus, it appears the Low Frequency Radio Range was second only to VOR in terms of being the most prolific radio navigation system by total number of stations, more than all of the other systems outside of VOR combined.
+
+ 
+
+ 
+
+THE LORENZ BEAM
+
+Lorenz: Germany, 1934-1960
+
+Germany’s Loren
+
+[... 内容已截断，原文共 45649 字符 ...]

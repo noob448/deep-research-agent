@@ -59,10 +59,24 @@ def make_chat_model(role: str = "default", temperature: float = None, rate_limit
         "supervisor": cfg.REASONING_EFFORT_SUPERVISOR,
         "researcher": cfg.REASONING_EFFORT_RESEARCHER,
         "critic": cfg.REASONING_EFFORT_CRITIC,
+<<<<<<< HEAD
         "verifier": cfg.REASONING_EFFORT_VERIFIER,
+=======
+        "verifier": "max",
+>>>>>>> v4.0-release
     }
     effort = effort_map.get(role, "high")
     extra_body = {"thinking": {"type": "enabled"}} if cfg.THINKING_ENABLED else None
+
+    # 按角色选择模型
+    model_map = {
+        "supervisor": cfg.AGENT_MODEL,
+        "researcher": cfg.AGENT_MODEL,
+        "critic": cfg.AGENT_MODEL,
+        "verifier": cfg.VERIFIER_MODEL if hasattr(cfg, "VERIFIER_MODEL") else cfg.AGENT_MODEL,
+        "summarizer": cfg.SUMMARIZE_MODEL if hasattr(cfg, "SUMMARIZE_MODEL") else cfg.AGENT_MODEL,
+    }
+    model = model_map.get(role, cfg.AGENT_MODEL)
 
     cls = _RateLimitedChatOpenAI if rate_limited else ChatOpenAI
     model = _model_for_role(role)

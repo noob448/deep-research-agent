@@ -106,6 +106,13 @@ if _cli_args.list_runs:
 
 TS_START = time.time()
 
+# ── 初始化 Run 状态（source_registry 依赖）──
+try:
+    from deep_research.runtime_state import init_run
+    init_run(topic=TOPIC, resume=False)
+except Exception:
+    pass  # 静默降级，不影响主流程
+
 def elapsed():
     m, s = divmod(int(time.time() - TS_START), 60)
     return f"[{m:02d}:{s:02d}]"
@@ -405,6 +412,26 @@ if report.exists():
     except Exception as e:
         print(f'\n  [WARN] docx 生成失败: {e}', flush=True)
         print(f'         修复方法: pip uninstall docx -y && pip install python-docx', flush=True)
+
+    # ── 同步报告到 run workspace ─────────────────────
+    try:
+        from deep_research.runtime_state import get_run
+        import shutil
+        run_ws = get_run().workspace_dir
+        run_ws.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(report, run_ws / 'report.md')
+    except Exception:
+        pass
+
+    # ── 事实核验 ─────────────────────────────────────
+    if cfg.VERIFIER_ENABLED and cfg.CLAIM_LEDGER_ENABLED:
+        try:
+            from deep_research.claim_verifier import verify_report
+            print(f'\n  [核验] 正在执行事实核验...', flush=True)
+            result = verify_report(max_claims=20)
+            print(f'  [核验] 完成: 总{result.get("total_claims",0)}条, 支持{result.get("verified",0)}条, 不支持{result.get("unsupported",0)}条', flush=True)
+        except Exception as e:
+            print(f'  [核验] 跳过（{e}）', flush=True)
 
     # ── 归档到历史数据库 ──────────────────────────────
     archived_path = _archive_to_history(run_ws, TOPIC)
