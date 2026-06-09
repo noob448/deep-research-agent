@@ -1,22 +1,32 @@
 # API Key
 deepseek.txt
 
-# Reference docs (not needed in repo)
-deep-research-agent-handson-conda.docx
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 
-# Runtime outputs (cleared on each run)
+# Node
+node_modules/
+deep-research-agent/web/dist/
+
+# ── 运行时生成数据（不上传）───────────────────────────
 deep-research-agent/workspace/
-
-# Vector store (local binary index)
 deep-research-agent/vector-store/
-
-# Research archives (user data, auto-created on first run)
 deep-research-agent/history-database/
+deep-research-agent/runs/
+
+# ── 报告文件（运行时生成）─────────────────────────────
+*.docx
+~$*.docx
+
+# ── 临时测试文件 ─────────────────────────────────────
+v3_report.txt
+dev_report.txt
+report_fast.docx
+
+# ── 对比报告 ─────────────────────────────────────────
+用于对比的报告/
 
 # Claude Code
 .claude/
@@ -25,8 +35,3 @@ deep-research-agent/history-database/
 # OS
 .DS_Store
 Thumbs.db
-node_modules/
-web/dist/
-report.md
-report.docx
-~

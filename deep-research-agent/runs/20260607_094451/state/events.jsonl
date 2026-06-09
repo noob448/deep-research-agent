@@ -1,3 +1,0 @@
-{"ts": "2026-06-07T01:44:51.118220+00:00", "run_id": "20260607_094451", "event_type": "run_started", "payload": {"topic": "今天北京天气怎么样？", "run_id": "20260607_094451", "resumed": false}}
-{"ts": "2026-06-07T01:44:51.118220+00:00", "run_id": "20260607_094451", "event_type": "phase_changed", "payload": {"phase": "initialized", "topic": "今天北京天气怎么样？"}}
-{"ts": "2026-06-07T01:44:51.122220+00:00", "run_id": "20260607_094451", "event_type": "workspace_prepared", "payload": {"workspace": "E:\\workplace\\claudle_workspace\\self-project-agent\\deep-research-agent\\runs\\20260607_094451\\workspace", "resume": false}}

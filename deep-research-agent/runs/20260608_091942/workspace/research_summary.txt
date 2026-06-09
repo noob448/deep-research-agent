@@ -1,9 +1,0 @@
-CS:GO（Counter-Strike: Global Offensive）是 Valve 与 Hidden Path Entertainment 联合开发的战术射击游戏，于 2012 年 8 月 21 日以 $15 定价在 Windows、macOS、Xbox 360 和 PS3 四平台同步发售，2023 年 9 月 27 日被基于 Source 2 引擎的 Counter-Strike 2 正式取代，服役周期约 11 年。
-
-游戏起源于 Hidden Path 将 CS:Source 移植至主机的尝试，Valve 将其扩展为系列第四部正作。发布初期面临 CS 1.6/CS:S 老玩家的比较争议，但媒体评价总体正面。2013 年 8 月的 Arms Deal 更新引入武器皮肤系统，创造了改变游戏商业模式的虚拟饰品经济。此后通过 Operations 限时活动（共计 11 次，从 Payback 到 Riptide）持续运营社区内容生态。
-
-中期（2015-2019）见证了等级系统改革、以 VAC/Overwatch/Prime/Trust Factor 为核心的反作弊体系构建、HRTF 3D 音效重做、Panorama UI 引擎升级，以及 2018 年 12 月的免费转型与 Danger Zone 大逃杀模式。这些变革使 CS:GO 从付费买断制转型为免费服务平台，玩家基数在 2020 年疫情期间突破 100 万并发，最终于 2023 年 2 月达到约 132 万的历史峰值。
-
-电竞方面，CS:GO 共举办 19 届 Major 锦标赛（2013-2023），奖金池从首届 $250,000 增长至 $2,000,000（Stockholm 2021）。Valve 通过贴纸和游戏内物品销售在 2021-2022 年间向战队/选手支付超过 $7,000 万，数字物品分成为电竞经济核心引擎。Astralis 以 4 座 Major 奖杯建立王朝，s1mple 被公认为史上最伟大选手。重大争议包括 iBUYPOWER 假赛丑闻（2014，涉事选手被永久禁赛）和教练观战 Bug 事件（2020，37 名教练受罚）。
-
-CS2 以 Source 2 引擎的 sub-tick 架构、体积烟雾物理和全面渲染升级接棒 CS:GO，但首发时面临性能优化和内容缺失的批评。CS:GO Legacy 版本作为 Beta 分支保留，供玩家访问旧 Demo 和社区服务器。

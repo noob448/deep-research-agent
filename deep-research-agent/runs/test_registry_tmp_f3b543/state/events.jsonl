@@ -1,3 +1,0 @@
-{"ts": "2026-06-06T12:17:26.403099+00:00", "run_id": "test_registry_tmp_f3b543", "event_type": "run_started", "payload": {"topic": "test registry", "run_id": "test_registry_tmp_f3b543", "resumed": false}}
-{"ts": "2026-06-06T12:17:26.405602+00:00", "run_id": "test_registry_tmp_f3b543", "event_type": "source_registered", "payload": {"source_id": "src_66ccb4", "url": "https://a.com", "source_type": "unknown", "content_chars": 1}}
-{"ts": "2026-06-06T12:17:26.421264+00:00", "run_id": "test_registry_tmp_f3b543", "event_type": "source_registered", "payload": {"source_id": "src_dda342", "url": "https://b.com", "source_type": "unknown", "content_chars": 1}}

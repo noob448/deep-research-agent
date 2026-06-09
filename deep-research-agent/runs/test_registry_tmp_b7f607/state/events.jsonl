@@ -1,2 +1,0 @@
-{"ts": "2026-06-06T12:16:43.411212+00:00", "run_id": "test_registry_tmp_b7f607", "event_type": "run_started", "payload": {"topic": "test registry", "run_id": "test_registry_tmp_b7f607", "resumed": false}}
-{"ts": "2026-06-06T12:16:43.413211+00:00", "run_id": "test_registry_tmp_b7f607", "event_type": "source_registered", "payload": {"source_id": "src_d1b4f7", "url": "https://example.com/search-result", "source_type": "search_result", "content_chars": 0}}

@@ -1,2 +1,0 @@
-{"ts": "2026-06-06T12:16:43.422254+00:00", "run_id": "test_registry_tmp_1dbb5c", "event_type": "run_started", "payload": {"topic": "test registry", "run_id": "test_registry_tmp_1dbb5c", "resumed": false}}
-{"ts": "2026-06-06T12:16:43.426460+00:00", "run_id": "test_registry_tmp_1dbb5c", "event_type": "source_registered", "payload": {"source_id": "src_9580c4", "url": "https://example.com/ledger-test", "source_type": "web", "content_chars": 5}}
