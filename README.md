@@ -1,117 +1,254 @@
 # Deep Research Agent
 
-基于 LangChain `deepagents` 框架的多智能体深度研究系统。输入一个课题，自动制定计划、并行搜索、交叉验证、撰写报告、浓缩归档。
+基于 LangChain `deepagents` 框架的多智能体深度研究系统。输入一个课题，自动规划、并行搜索、交叉验证、撰写结构化报告、事实核验、归档。
 
 ## 工作原理
 
 ```
-用户课题 → Supervisor 规划 → 3 个 Researcher 并行搜索
+用户课题 → Supervisor MECE 分解 → 动态数量 Researcher 搜索
           ├── DuckDuckGo (通用网络)
-          ├── OpenAlex (学术论文, 2.4亿篇)
+          ├── OpenAlex (英文学术, 2.4亿篇)
           ├── Crossref (学术元数据/DOI)
+          ├── 百度学术 / 知乎 / 百度百科 (国内来源)
           └── 本地向量知识库 (BGE-M3 + Chroma)
 
-         → 重排精排 → 交叉验证 → 分节撰写报告
-         → Summarizer 分类浓缩 → 自动增量索引归档
+         → Cross-Encoder 重排精排 → 结构化归档
+         → Supervisor 分节撰写报告 → Critic 审查（可选）
+         → Verifier 事实核验 → Summarizer 浓缩归档
 ```
 
 - **Supervisor**：编排规划、分配任务、质量把关，**不直接搜索**
-- **Researcher × 3**：各自拥有独立上下文，8-15 次搜索预算，OODA 循环
+- **Researcher × N**：独立上下文，OODA 循环，搜索预算代码层硬拦截
 - **Critic**（可选）：独立审查报告质量，输出结构化缺陷清单
-- **RAG 知识库**：每次研究的浓缩摘要自动向量化入库，后续研究可检索历史积累
+- **Verifier**：读取原始来源文件，逐条核验报告中论断的事实支撑
+- **RAG 知识库**：每次研究摘要自动向量化入库，后续可检索历史积累
 
-## 快速开始
+---
 
-### 1. 安装依赖
+## 环境要求
+
+- Python 3.10+
+- Node.js 18+（Web 前端构建）
+- 至少 4GB 可用内存（BGE-M3 ~1.2GB + BGE reranker ~300MB）
+
+---
+
+## 第一步：安装依赖
 
 ```bash
+# 克隆仓库
 git clone git@github.com:noob448/deep-research-agent.git
-cd deep-research-agent
+cd deep-research-agent/deep-research-agent
+
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# （推荐）使用 conda 环境隔离
+conda create -n deep-research python=3.12
+conda activate deep-research
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API Key
+---
 
-在项目根目录创建 `deepseek.txt` 写入你的 API Key：
+## 第二步：配置 API Key
+
+在项目根目录（`self-project-agent/`）下创建 `deepseek.txt`：
 
 ```
 sk-your-deepseek-api-key
 ```
 
-或者设置环境变量 `DEEPSEEK_API_KEY`。
-
-> 使用 DeepSeek V4 Pro（OpenAI 兼容接口），也可在 `deep_research/config.py` 中切换其他兼容模型。
-
-### 3. 运行测试
+或者设置环境变量：
 
 ```bash
-python run_test.py "什么是AI Agent?"
+export DEEPSEEK_API_KEY="sk-your-deepseek-api-key"
 ```
 
-首次运行会自动下载 BGE-M3 嵌入模型（~1.2GB）和 BGE reranker（~300MB），之后缓存。预计 5-10 分钟完成，产出 `workspace/report.md` 和 `workspace/report.docx`。
+默认使用 DeepSeek V4 Pro（OpenAI 兼容接口）。如需切换模型，编辑 `deep_research/config.py` 中的 `AGENT_MODEL`。
 
-### 4. Web 界面（可选）
+---
+
+## 第三步：CLI 命令行使用
+
+### 基础用法
 
 ```bash
-python server.py
-# 浏览器打开 http://localhost:5001
+# 最简单的运行方式（deep 模式，推荐）
+python run_test.py "你的研究课题"
+
+# 快速搜索（fast 模式，5次搜索/5分钟时限）
+python run_test.py "简单事实查询" --short-thinking
+
+# 深度研究（max 模式，含 Critic 审查 + Verifier 核验）
+python run_test.py "复杂研究课题" --long-thinking --enable-critic
 ```
 
-提供可视化操作界面：输入课题 → 实时日志 → 下载报告。不需要了解命令行。
+### 三档模式对比
 
-### 5. CLI 选项
+| 模式 | CLI 参数 | 搜索上限 | 时间限制 | Critic | Verifier | 适用场景 |
+|------|---------|---------|---------|--------|----------|---------|
+| ⚡ Fast | `--short-thinking` | 5 次 | 5 分钟 | ❌ | ❌ | 简单事实查询 |
+| 🔬 Deep | (默认) | 20 次 | 无 | ❌ | ✅ | 常规深度研究 |
+| 🧠 Max | `--long-thinking --enable-critic` | 20 次 | 无 | ✅ | ✅ | 复杂多维课题 |
+
+### 完整 CLI 参数
 
 ```bash
-# 基础用法
-python run_test.py "课题"
+# 推理深度
+python run_test.py "课题" --reasoning-effort max      # Supervisor 推理档位 (high/max)
+python run_test.py "课题" --researcher-effort high     # Researcher 推理档位
 
-# 全速推理（Supervisor/Researcher/Critic 全部 max）
-python run_test.py "课题" --long-thinking
+# 搜索控制
+python run_test.py "课题" --max-searches 15            # 每研究员搜索上限
+python run_test.py "课题" --max-researchers 3          # 并行 researcher 数量
 
-# 省 token 模式
-python run_test.py "课题" --short-thinking
+# 反思与审批
+python run_test.py "课题" --enable-critic              # 开启 Critic 反思回路
+python run_test.py "课题" --critic-rounds 2            # Critic 最多轮数（默认3）
+python run_test.py "课题" --interactive-plan           # HITL 人工计划审批
 
-# 深度模式：推理拉满 + 反思回路 + 人工审批
-python run_test.py "课题" --long-thinking --enable-critic --interactive-plan
+# RAG 调试
+python run_test.py "课题" --no-hybrid-kb               # 关闭混合检索
+python run_test.py "课题" --no-rerank-kb               # 关闭 KB 重排
+python run_test.py "课题" --no-contextual-rag          # 关闭上下文检索
 
-# 调宽搜索预算 + 并发数
-python run_test.py "复杂课题" --max-searches 20 --max-researchers 5
+# 运行管理
+python run_test.py --list-runs                         # 列出历史 run
+python run_test.py --resume                            # 恢复最近一次 run
+python run_test.py --resume 20260608_091942            # 恢复指定 run
+python run_test.py "课题" --run-id my_custom_id        # 指定 run 目录名
 
-# 调试 RAG
-python run_test.py "课题" --no-hybrid-kb --debug
-python run_test.py "课题" --no-rerank-kb
-python run_test.py "课题" --no-contextual-rag
+# 调试
+python run_test.py "课题" --debug                      # 打印 thinking 内容
 
-# 重建向量库（老 schema → 新 schema 迁移）
-python build_index.py --rebuild
-
-# 查看所有选项
+# 查看全部选项
 python run_test.py --help
 ```
 
-## 使用提醒
+### 运行产出
 
-- **每次新课题会清空上一次的 `workspace/`**（包括 report.md / report.docx / notes）。如需保留，请在运行前下载或备份。历史摘要已自动归档到 `history-database/`，向量库 `vector-store/` 不受影响。
-- **课题描述越具体，研究效果越好**。宽泛的提问（如"AI 是什么"）会导致研究员搜索方向分散，而具体的课题（如"2024 年多模态大模型的主流架构范式及代表模型对比"）能产出更聚焦、更深入的报告。
+```bash
+runs/<run_id>/
+├── workspace/
+│   ├── report.md          # 最终研究报告（Markdown）
+│   ├── report.docx        # Word 格式报告
+│   ├── research_summary.txt  # 浓缩摘要
+│   └── notes/             # 研究员返回归档
+├── sources/               # 来源全文保存
+│   └── src_xxxxxx.txt
+└── state/
+    ├── events.jsonl       # 事件流
+    ├── sources.jsonl      # 来源账本
+    ├── claims.jsonl       # 论断账本
+    └── research_progress.json
+```
+
+---
+
+## 第四步：Web 界面使用
+
+### 启动方式
+
+```bash
+# 方式一：生产模式（单端口 5001，需要先构建前端）
+cd web
+npm install
+npm run build
+cd ..
+python server.py
+# 浏览器打开 http://localhost:5001
+
+# 方式二：开发模式（双端口，前端热更新）
+# 终端 1
+python server.py
+# 终端 2
+cd web
+npm install
+npm run dev
+# 浏览器打开 http://localhost:5173（Vite dev 代理到 Flask :5001）
+```
+
+### Web 功能面板
+
+| 面板 | 功能 | 数据源 |
+|------|------|--------|
+| **实时日志** | SSE 实时推流，自动滚动 | Agent stdout |
+| **Agent 活动** | 按 Researcher 分组展示工具调用链 | 日志解析 |
+| **来源账本** | 按类型过滤查看所有来源 | sources.jsonl |
+| **论断验证** | 报告论断的核验状态（SUPPORTED/PARTIAL/UNSUPPORTED） | claims.jsonl |
+| **报告预览** | Markdown 渲染 + 下载 .md/.docx/.txt | report.md |
+
+---
+
+## 配置说明
+
+所有可调参数集中在 `deep_research/config.py`，主要配置项：
+
+```python
+# ── 模型配置 ──
+AGENT_MODEL = "deepseek-v4-pro"         # 默认模型
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+REQUEST_TIMEOUT = 300                   # API 超时（秒）
+MAX_RETRIES = 5
+
+# ── 搜索配置 ──
+RESEARCHER_SEARCH_LIMIT = 20            # 每研究员搜索硬上限
+SEARCH_MAX_RESULTS = 10                 # 单次搜索返回数（重排前）
+RERANK_TOP_K = 4                        # 重排后保留数
+FETCH_TIMEOUT = 15                      # 网页抓取超时
+
+# ── 学术来源 ──
+USE_OPENALEX = True                     # 英文学术
+USE_CROSSREF = True                     # 学术元数据
+USE_CN_SEARCH = True                    # 国内来源（知乎/百科/百度学术）
+
+# ── 上下文控制 ──
+TOOL_OUTPUT_SOFT_CHAR_LIMIT = 18000     # 软限制警告
+TOOL_OUTPUT_HARD_CHAR_LIMIT = 30000     # 硬限制强制停止
+ENABLE_SOURCE_REGISTRY = True           # 来源追踪
+
+# ── Verifier ──
+VERIFIER_ENABLED = True                 # 事实验证
+VERIFIER_AS_SUBAGENT = False            # False=Python层调用, True=LangGraph subagent
+```
+
+---
 
 ## 项目结构
 
 ```
 deep-research-agent/
-├── run_test.py              # 主入口（流式输出 + 归档 + 增量索引）
-├── build_index.py           # 一次性建库脚本（--rebuild 重建）
-├── deep_research/           # 核心包（~1800 行）
-│   ├── config.py            # 集中配置
-│   ├── tools.py             # 5 个搜索工具
-│   ├── prompts.py           # Supervisor + Researcher 提示词
-│   ├── agent.py             # Agent 组装工厂
-│   ├── subagents.py         # Researcher + Critic 子智能体
-│   ├── rerank.py            # 检索重排 (Cross-Encoder)
-│   ├── knowledge_base.py    # 向量知识库 (BGE-M3 + Chroma)
-│   ├── summarizer.py        # 分类决策 + 内容浓缩
-│   ├── report.py            # Markdown → .docx
-│   └── skills/              # 渐进式披露 Skills
-└── workspace/               # 运行时产出（自动清空）
+├── run_test.py                 # CLI 主入口
+├── server.py                   # Flask Web 服务
+├── requirements.txt            # Python 依赖
+├── deep_research/              # 核心包
+│   ├── config.py               # 集中配置（160+ 项）
+│   ├── agent.py                # Agent 组装工厂
+│   ├── prompts.py              # 全部 System Prompt
+│   ├── tools.py                # 6 类搜索工具 + 预算控制
+│   ├── subagents.py            # Researcher + Critic + Verifier
+│   ├── model_factory.py        # LLM 工厂 + 并发限流
+│   ├── rerank.py               # Cross-Encoder 重排
+│   ├── report.py               # Markdown → .docx
+│   ├── knowledge_base.py       # BGE-M3 + Chroma 向量库
+│   ├── summarizer.py           # 摘要分类 + 浓缩
+│   ├── source_registry.py      # 来源注册 + source_id 追踪
+│   ├── claim_verifier.py       # 论断抽取 + 事实核验
+│   ├── runtime_state.py        # Run 状态管理
+│   └── skills/                 # 渐进式 Skills
+│       ├── academic-report/SKILL.md
+│       └── source-quality/SKILL.md
+├── web/                        # React 前端
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── components/         # 9 个 UI 组件
+│   │   ├── api/research.ts     # API 调用
+│   │   └── types/              # TypeScript 类型定义
+│   ├── package.json
+│   └── vite.config.ts
+├── docs/                       # 开发文档
+└── runs/                       # 研究产出（运行时生成）
 ```
 
 ## 许可证
