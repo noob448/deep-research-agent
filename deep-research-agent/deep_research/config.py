@@ -12,6 +12,32 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent  # deep-research-agent/
 WORKSPACE_DIR = PROJECT_ROOT / "workspace"
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"  # deep_research/skills/
 
+# ── Run / State 配置 ───────────────────────────────────
+RUNS_DIR = PROJECT_ROOT / "runs"
+DEFAULT_RUN_ID_FORMAT = "%Y%m%d_%H%M%S"
+STATE_SCHEMA_VERSION = 1
+ENABLE_RUN_STATE = True
+COPY_LATEST_TO_WORKSPACE = True
+LEGACY_WORKSPACE_COMPAT = True
+
+# 事件日志与账本文件名
+EVENT_LOG_FILENAME = "events.jsonl"
+PROGRESS_FILENAME = "research_progress.json"
+SOURCES_LEDGER_FILENAME = "sources.jsonl"
+CLAIMS_LEDGER_FILENAME = "claims.jsonl"
+VERIFICATION_LEDGER_FILENAME = "verification.jsonl"
+
+# ── Source / Claim Ledger ───────────────────────────────
+ENABLE_SOURCE_REGISTRY = True
+SOURCE_ID_PREFIX = "src"
+SOURCE_SNIPPET_CHAR_LIMIT = 800
+WEB_FETCH_INLINE_CHAR_LIMIT = 1200
+WEB_FETCH_FULLTEXT_SAVE = True
+SOURCE_LEDGER_ENABLED = True
+CLAIM_LEDGER_ENABLED = True
+VERIFIER_ENABLED = True
+VERIFIER_AS_SUBAGENT = False  # V3.0: 用 Python orchestration 层调用
+
 # ─── DeepSeek API 配置 ───────────────────────────────────
 # DeepSeek 使用 OpenAI 兼容格式
 # 优先级: 环境变量 > 项目根目录的 deepseek.txt
@@ -63,6 +89,7 @@ OUTPUT_DOCX_FILENAME = "report.docx"
 
 # ─── 归档配置 ───────────────────────────────────────────
 SUMMARIZE_MODEL = "deepseek-v4-pro"  # 分类+浓缩用的模型，可独立切换为更廉价的模型
+VERIFIER_MODEL = "deepseek-v4-pro"   # 事实验证模型
 
 # ─── 向量库 / RAG 配置 ───────────────────────────────────
 # 将历史研究摘要向量化，存入本地 Chroma，供研究员检索历史积累

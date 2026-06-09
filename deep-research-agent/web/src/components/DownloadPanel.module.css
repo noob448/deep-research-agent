@@ -1,0 +1,5 @@
+.section{background:rgba(15,23,42,0.8);border:1px solid #334155;border-radius:8px;padding:1.5rem;text-align:center}
+.section h3{color:#e2e8f0;margin:0 0 1rem}
+.btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.btn{padding:0.7rem 1.4rem;border-radius:6px;text-decoration:none;font-weight:500;font-size:0.9rem;transition:opacity .2s}
+.btn:hover{opacity:0.8}.md{background:#2563eb;color:#fff}.docx{background:#7c3aed;color:#fff}.txt{background:#334155;color:#94a3b8}

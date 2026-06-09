@@ -16,6 +16,18 @@ except ImportError:
 
 from . import config as cfg
 
+# ── 来源追踪（轻量：仅写 sources.jsonl，不影响搜索逻辑）──
+def _try_register_source(url, title, text, source_type, query, tool_name):
+    """尝试注册来源，失败静默忽略（不影响搜索主流程）。"""
+    if not cfg.ENABLE_SOURCE_REGISTRY:
+        return ""
+    try:
+        from .source_registry import register_source
+        rec = register_source(url=url, text=text, title=title, source_type=source_type, query=query, tool=tool_name)
+        return f"\nsource_id: {rec.source_id}"
+    except Exception:
+        return ""
+
 # ── 搜索预算追踪（每个 researcher 独立计数，只影响自己，不影响他人）──
 _search_budget = {}     # {agent_name: count}
 _search_cache = {}      # {agent_name: {query_hash: True}}  每个 researcher 独立的去重缓存
@@ -182,6 +194,10 @@ def web_search(query: str) -> str:
             body = r.get("body", "无摘要")
             lines.append(f"{i}. {title}")
             lines.append(f"   URL: {href}")
+            # 注册来源
+            sid = _try_register_source(href, title, "", "search_result", query, "web_search")
+            if sid:
+                lines.append(f"   {sid}")
             lines.append(f"   摘要: {body}\n")
 
         return "\n".join(lines)
@@ -246,7 +262,14 @@ def web_fetch(url: str) -> str:
                     f"\n\n[... 内容已截断，原文共 {len(text)} 字符 ...]"
                 )
 
-            return f"来源: {url}\n\n{text}"
+            # 注册来源（全文保存到 /sources/）
+            sid = _try_register_source(url, None, text if cfg.WEB_FETCH_FULLTEXT_SAVE else "", "web", "", "web_fetch")
+            fulltext_note = ""
+            if sid:
+                fulltext_note = f"\n{sid}\n[全文已保存到 /sources/]"
+            if len(text) > cfg.WEB_FETCH_INLINE_CHAR_LIMIT:
+                text = text[:cfg.WEB_FETCH_INLINE_CHAR_LIMIT] + f"\n[... 全文共 {len(text)} 字符 ...]"
+            return f"来源: {url}{fulltext_note}\n\n{text}"
 
         except Exception as e:
             last_error = e
