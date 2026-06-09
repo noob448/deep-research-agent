@@ -252,12 +252,17 @@ def verify_report(
 
     record_event("claims_extracted", {"count": len(claims)})
 
-    # 3. 逐条验证
+    # 3. 逐条验证（带进度提示）
+    import sys as _sys
     results = []
-    for claim in claims:
+    total = len(claims)
+    for idx, claim in enumerate(claims, 1):
+        print(f"  [核验] {idx}/{total} {claim['claim_id']}...", file=_sys.__stdout__, flush=True)
         result = verify_claim(claim)
         result["verified_at"] = datetime.now(timezone.utc).isoformat()
         results.append(result)
+        status = result.get("status", "?")
+        print(f"  [核验] {idx}/{total} {claim['claim_id']} → {status}", file=_sys.__stdout__, flush=True)
 
         # 更新 claim 状态
         claim["verification_status"] = result.get("status", "NOT_CHECKED")

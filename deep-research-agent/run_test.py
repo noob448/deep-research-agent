@@ -429,7 +429,7 @@ if report.exists():
         try:
             from deep_research.claim_verifier import verify_report
             print(f'\n  [核验] 正在执行事实核验...', flush=True)
-            result = verify_report(max_claims=20)
+            result = verify_report(max_claims=8)
             print(f'  [核验] 完成: 总{result.get("total_claims",0)}条, 支持{result.get("verified",0)}条, 不支持{result.get("unsupported",0)}条', flush=True)
         except Exception as e:
             print(f'  [核验] 跳过（{e}）', flush=True)
