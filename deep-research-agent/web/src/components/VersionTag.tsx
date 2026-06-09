@@ -14,7 +14,7 @@ export default function VersionTag() {
   useEffect(() => {
     getVersion()
       .then((i) => {
-        if (i?.git?.date) setT(`V4.0 · ${fmt(i.git.date)}`)
+        if (i?.git?.date) setT(`V4.0 · ${i.git.short_hash} · ${fmt(i.git.date)}`)
       })
       .catch(() => {})
   }, [])
