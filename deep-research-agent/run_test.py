@@ -59,6 +59,7 @@ def apply_cli_to_config(args):
         cfg.REASONING_EFFORT_SUPERVISOR = "max"
         # 注意: Researcher 保持在 high，5 路并行 max reasoning 会触发 API 限流
         cfg.REASONING_EFFORT_CRITIC = "max"
+        cfg.SUBAGENT_MAX_CONCURRENCY = 3   # max: 限制并发防止 BGE模型内存爆炸
     elif args.short_thinking:
         cfg.REASONING_EFFORT_SUPERVISOR = "high"
         cfg.REASONING_EFFORT_RESEARCHER = "high"
